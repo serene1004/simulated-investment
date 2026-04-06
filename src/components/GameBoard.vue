@@ -46,6 +46,7 @@ const props = defineProps({
 const emit = defineEmits<{
   showBriefing: []
   showTrade: []
+  quit: []
   selectStock: [code: string]
   setTradeQuantity: [value: number]
   nudgeTradeQuantity: [delta: number]
@@ -169,6 +170,7 @@ const tradeStatusMessage = computed(() => {
             <div class="desk-holdings-head-right">
               <span class="desk-phase-chip">PHASE {{ currentPhase }} / {{ totalPhases }}</span>
               <strong class="score-chip">{{ score.toLocaleString() }} pt</strong>
+              <button class="ghost-button market-exit-button" @click="$emit('quit')">그만하기</button>
             </div>
           </div>
 

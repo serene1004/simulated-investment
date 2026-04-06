@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import GameBoard from './components/GameBoard.vue'
 import HomeScreen from './components/HomeScreen.vue'
 import RankingScreen from './components/RankingScreen.vue'
@@ -73,6 +73,7 @@ type TickerItem = {
 
 const tickerCopies = [0, 1]
 const numberFormatter = new Intl.NumberFormat('ko-KR')
+const showQuitConfirm = ref(false)
 
 const formatWon = (value: number) => `${numberFormatter.format(value)}원`
 const formatSignedRate = (value: number) => `${value > 0 ? '+' : ''}${value.toFixed(1)}%`
@@ -135,6 +136,19 @@ const tickerBottomItems = computed<TickerItem[]>(() =>
     tone: toTickerTone(stock.changeRate),
   })),
 )
+
+const requestQuitGame = () => {
+  showQuitConfirm.value = true
+}
+
+const cancelQuitGame = () => {
+  showQuitConfirm.value = false
+}
+
+const confirmQuitGame = () => {
+  showQuitConfirm.value = false
+  resetGame()
+}
 </script>
 
 <template>
@@ -221,6 +235,7 @@ const tickerBottomItems = computed<TickerItem[]>(() =>
           :trade-quantity="tradeQuantity"
           @show-briefing="openBriefingView()"
           @show-trade="openTradeView()"
+          @quit="requestQuitGame()"
           @select-stock="selectStock($event)"
           @set-trade-quantity="setTradeQuantity($event)"
           @nudge-trade-quantity="nudgeTradeQuantity($event)"
@@ -263,5 +278,20 @@ const tickerBottomItems = computed<TickerItem[]>(() =>
         />
       </Transition>
     </main>
+
+    <Transition name="confirm-pop">
+      <div v-if="showQuitConfirm" class="confirm-overlay" @click.self="cancelQuitGame()">
+        <section class="panel confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="quit-title">
+          <p class="eyebrow">QUIT GAME</p>
+          <h2 id="quit-title">정말 그만할까요?</h2>
+          <p class="confirm-copy">지금 그만하면 이번 플레이는 정리되고 홈으로 돌아가요.</p>
+
+          <div class="confirm-actions">
+            <button class="secondary-button" @click="cancelQuitGame()">계속하기</button>
+            <button class="primary-button confirm-danger-button" @click="confirmQuitGame()">그만하기</button>
+          </div>
+        </section>
+      </div>
+    </Transition>
   </div>
 </template>

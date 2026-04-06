@@ -301,7 +301,7 @@ button:focus-visible {
 .briefing-spotlight,
 .briefing-watchlist,
 .briefing-focus {
-  padding: clamp(18px, 2vw, 30px);
+  padding: clamp(16px, 1.7vw, 26px);
 }
 
 .eyebrow {
@@ -718,7 +718,7 @@ h3 {
 
 .game-layout {
   display: grid;
-  gap: clamp(0.85rem, 1.2vw, 1.15rem);
+  gap: clamp(0.72rem, 1vw, 0.96rem);
 }
 
 .market-hero {
@@ -789,6 +789,59 @@ h3 {
 
 .market-view-card.active strong {
   color: #2258ce;
+}
+
+.market-exit-button {
+  min-width: 6.8rem;
+  min-height: 2.1rem;
+  padding: 0.42rem 0.92rem;
+  border-radius: 999px;
+  border: 1px solid rgba(228, 87, 69, 0.16);
+  background: rgba(255, 255, 255, 0.82);
+  color: #8b5d56;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.market-exit-button:hover {
+  border-color: rgba(228, 87, 69, 0.28);
+  background: rgba(255, 248, 246, 0.92);
+  color: #c24c3c;
+}
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 1.2rem;
+  background: rgba(11, 18, 31, 0.34);
+  backdrop-filter: blur(10px);
+}
+
+.confirm-dialog {
+  width: min(28rem, 100%);
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.35rem 1.4rem;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.confirm-copy {
+  color: var(--muted);
+  font-size: 0.96rem;
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.confirm-danger-button {
+  min-width: 7rem;
 }
 
 .desk-holdings {
@@ -1450,7 +1503,7 @@ h3 {
 }
 
 .compact-stock-list {
-  max-height: 36rem;
+  max-height: 35rem;
   margin-top: 0;
   padding-right: 0.35rem;
   overflow-y: auto;
@@ -1937,6 +1990,19 @@ h3 {
   transform: translateY(20px) scale(0.985);
 }
 
+.confirm-pop-enter-active,
+.confirm-pop-leave-active {
+  transition:
+    opacity 220ms var(--ease-out-quart),
+    transform 220ms var(--ease-out-quart);
+}
+
+.confirm-pop-enter-from,
+.confirm-pop-leave-to {
+  opacity: 0;
+  transform: scale(0.98);
+}
+
 .detail-fade-enter-active,
 .detail-fade-leave-active {
   transition:
@@ -2229,6 +2295,14 @@ h3 {
   .primary-button,
   .secondary-button,
   .ghost-button {
+    width: 100%;
+  }
+
+  .market-exit-button {
+    width: auto;
+  }
+
+  .confirm-actions {
     width: 100%;
   }
 
