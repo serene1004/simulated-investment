@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed } from 'vue'
 import type { PropType } from 'vue'
 
@@ -83,9 +83,9 @@ const reaction = computed(() => {
 </script>
 
 <template>
-  <div class="summary-screen-shell">
-    <section class="panel hero-panel summary-panel scene-panel" :class="`summary-tone-${reaction.tone}`">
-      <div class="hero-stack summary-stack">
+  <div class="screen-summary">
+    <section class="panel screen-panel summary-screen-panel scene-panel" :class="`summary-tone-${reaction.tone}`">
+      <div class="screen-stack summary-screen-panel-stack">
         <div class="section-header">
           <div>
             <p class="eyebrow">PHASE RESULT</p>
@@ -94,8 +94,8 @@ const reaction = computed(() => {
           <strong class="score-chip">{{ summary.phaseProfitRate > 0 ? '+' : '' }}{{ summary.phaseProfitRate.toFixed(1) }}%</strong>
         </div>
 
-        <div class="summary-reaction">
-          <div class="reaction-emoji">{{ reaction.emoji }}</div>
+        <div class="summary-highlight">
+          <div class="summary-highlight-emoji">{{ reaction.emoji }}</div>
           <div>
             <h3>{{ reaction.title }}</h3>
             <p>{{ reaction.message }}</p>
@@ -121,14 +121,14 @@ const reaction = computed(() => {
           </article>
         </div>
 
-        <div class="summary-story hover-lift">
+        <div class="summary-event-panel hover-lift">
           <span>{{ summary.eventTitle }}</span>
           <p>{{ summary.eventDescription }}</p>
         </div>
 
-        <div class="hero-divider" aria-hidden="true"></div>
+        <div class="screen-divider" aria-hidden="true"></div>
 
-        <div class="hero-actions">
+        <div class="screen-actions">
           <button v-if="isLastPhase" class="primary-button" @click="$emit('result')">최종 결과 보러 가기</button>
           <button v-else class="primary-button" @click="$emit('next')">다음 페이즈로 가기</button>
         </div>

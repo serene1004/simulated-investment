@@ -26,6 +26,12 @@ import type {
   TradeSide,
 } from '../types/game'
 
+type LegacyPersistedGameState = Omit<PersistedGameState, 'currentPhaseEvent'> & {
+  currentPhaseEvent?: PhaseEvent
+  currentEventTitle?: string
+  currentEventDescription?: string
+}
+
 const gameStorageKey = 'simulated-investment-game-state'
 const rankingStorageKey = 'simulated-investment-ranking'
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
@@ -214,7 +220,6 @@ const buildFeaturedStocks = (stocks: StockState[], event: PhaseEvent): BriefingF
 const buildBriefingSignals = (
   stocks: StockState[],
   event: PhaseEvent,
-  phaseTradeActions: PhaseTradeAction[],
 ): BriefingSignal[] => {
   const risingStocks = [...stocks].sort((left, right) => right.changeRate - left.changeRate)
   const fallingStocks = [...stocks].sort((left, right) => left.changeRate - right.changeRate)
@@ -275,13 +280,10 @@ const createInitialPersistedState = (): PersistedGameState => {
     cash: startingCashDefault,
     tradeQuantity: suggestTradeQuantity(openingStocks.find((stock) => stock.code === selectedCode), startingCashDefault, 0),
     selectedCode,
-    lastAction: '개장 전 브리핑부터 보고 이번 페이즈를 어떻게 갈지 정해봐요.',
     stocks: openingStocks,
     holdings: [],
     summary: null,
     currentPhaseEvent: openingEvent,
-    currentEventTitle: openingEvent.title,
-    currentEventDescription: openingEvent.description,
     phaseView: 'briefing',
     phaseTradeActions: [],
   }
@@ -307,7 +309,7 @@ const createPersistedFallbackEvent = (title: string, description: string): Phase
   effectRange: [-2, 2],
 })
 
-const normalizePersistedState = (state: PersistedGameState): PersistedGameState => {
+const normalizePersistedState = (state: LegacyPersistedGameState): PersistedGameState => {
   const fallback = createInitialPersistedState()
   const currentPhaseEvent = state.currentPhaseEvent
     ? clonePhaseEvent(state.currentPhaseEvent)
@@ -329,8 +331,6 @@ const normalizePersistedState = (state: PersistedGameState): PersistedGameState 
     holdings: state.holdings ?? [],
     summary: state.summary ?? null,
     currentPhaseEvent,
-    currentEventTitle: currentPhaseEvent.title,
-    currentEventDescription: currentPhaseEvent.description,
     phaseView: state.phaseView ?? 'briefing',
     phaseTradeActions: state.phaseTradeActions ?? [],
   }
@@ -370,7 +370,7 @@ const formatPlayedAt = () => {
 
 export const useInvestmentGame = () => {
   const fallbackState = createInitialPersistedState()
-  const persistedState = normalizePersistedState(readJson<PersistedGameState>(gameStorageKey, fallbackState))
+  const persistedState = normalizePersistedState(readJson<LegacyPersistedGameState>(gameStorageKey, fallbackState))
 
   const currentScreen = ref<Screen>(persistedState.currentScreen)
   const nickname = ref(persistedState.nickname)
@@ -379,7 +379,6 @@ export const useInvestmentGame = () => {
   const cash = ref(persistedState.cash)
   const tradeQuantity = ref(persistedState.tradeQuantity)
   const selectedCode = ref(persistedState.selectedCode)
-  const lastAction = ref(persistedState.lastAction)
   const stocks = ref<StockState[]>(persistedState.stocks)
   const holdings = ref<Holding[]>(persistedState.holdings)
   const summary = ref<PhaseSummary | null>(persistedState.summary)
@@ -423,8 +422,10 @@ export const useInvestmentGame = () => {
     suggestTradeQuantity(selectedStock.value, cash.value, selectedHoldingQuantity.value),
   )
   const selectedStockLocked = computed(() => phaseTradedCodes.value.has(selectedCode.value))
-  const canBuySelected = computed(() => !selectedStockLocked.value && maxAffordableQuantity.value > 0)
-  const canSellSelected = computed(() => !selectedStockLocked.value && selectedHoldingQuantity.value > 0)
+  const canBuyMaxSelected = computed(() => !selectedStockLocked.value && maxAffordableQuantity.value > 0)
+  const canSellAllSelected = computed(() => !selectedStockLocked.value && selectedHoldingQuantity.value > 0)
+  const canBuySelected = computed(() => canBuyMaxSelected.value && tradeQuantity.value <= maxAffordableQuantity.value)
+  const canSellSelected = computed(() => canSellAllSelected.value && tradeQuantity.value <= selectedHoldingQuantity.value)
   const phaseTradeLocked = computed(
     () =>
       !stocks.value.some((stock) => {
@@ -438,7 +439,7 @@ export const useInvestmentGame = () => {
       }),
   )
   const briefingFeaturedStocks = computed(() => buildFeaturedStocks(stocks.value, currentPhaseEvent.value))
-  const briefingSignals = computed(() => buildBriefingSignals(stocks.value, currentPhaseEvent.value, phaseTradeActions.value))
+  const briefingSignals = computed(() => buildBriefingSignals(stocks.value, currentPhaseEvent.value))
 
   const saveGameState = () => {
     if (typeof window === 'undefined') {
@@ -453,13 +454,10 @@ export const useInvestmentGame = () => {
       cash: cash.value,
       tradeQuantity: tradeQuantity.value,
       selectedCode: selectedCode.value,
-      lastAction: lastAction.value,
       stocks: stocks.value,
       holdings: holdings.value,
       summary: summary.value,
       currentPhaseEvent: currentPhaseEvent.value,
-      currentEventTitle: currentPhaseEvent.value.title,
-      currentEventDescription: currentPhaseEvent.value.description,
       phaseView: phaseView.value,
       phaseTradeActions: phaseTradeActions.value,
     }
@@ -484,7 +482,6 @@ export const useInvestmentGame = () => {
       cash,
       tradeQuantity,
       selectedCode,
-      lastAction,
       stocks,
       holdings,
       summary,
@@ -551,7 +548,6 @@ export const useInvestmentGame = () => {
     cash.value = nextState.cash
     tradeQuantity.value = nextState.tradeQuantity
     selectedCode.value = nextState.selectedCode
-    lastAction.value = nextState.lastAction
     stocks.value = nextState.stocks
     holdings.value = nextState.holdings
     summary.value = nextState.summary
@@ -565,7 +561,6 @@ export const useInvestmentGame = () => {
   const startGame = () => {
     resetGame()
     currentScreen.value = 'game'
-    lastAction.value = '1페이즈 브리핑이 열렸어요.'
   }
 
   const openScreen = (screen: Screen) => {
@@ -631,7 +626,6 @@ export const useInvestmentGame = () => {
       },
     ]
 
-    lastAction.value = phaseTradeActions.value.map((action) => action.label).join(' · ')
   }
 
   const buyStock = () => {
@@ -757,7 +751,6 @@ export const useInvestmentGame = () => {
     const phaseProfitRate = Number((((totalAssets.value - assetsBeforeMove) / assetsBeforeMove) * 100).toFixed(1))
     summary.value = createSummaryFromStocks(phaseNumber, stocks.value, totalAssets.value, phaseProfitRate, activeEvent, decisionLabel)
     currentScreen.value = 'summary'
-    lastAction.value = `${phaseNumber}페이즈가 끝났어요 · ${decisionLabel}`
 
     if (phaseNumber < totalPhases.value) {
       currentPhase.value += 1
@@ -773,7 +766,6 @@ export const useInvestmentGame = () => {
     summary.value = null
     preparePhaseBriefing()
     currentScreen.value = 'game'
-    lastAction.value = `${currentPhase.value}페이즈 브리핑이 열렸어요.`
   }
 
   const goToResult = () => {
@@ -817,7 +809,9 @@ export const useInvestmentGame = () => {
     briefingSignals,
     buyMaxStock,
     buyStock,
+    canBuyMaxSelected,
     canBuySelected,
+    canSellAllSelected,
     canSellSelected,
     cash,
     clearRanking,
@@ -826,12 +820,10 @@ export const useInvestmentGame = () => {
     currentEventTitle,
     currentPhase,
     currentScreen,
-    flashMessage,
     goToResult,
     holdings,
     holdingsMap,
     isFinalSummary,
-    lastAction,
     maxAffordableQuantity,
     nickname,
     nudgeTradeQuantity,

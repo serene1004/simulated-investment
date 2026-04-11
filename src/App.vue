@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, ref } from 'vue'
 import GameBoard from './components/GameBoard.vue'
 import HomeScreen from './components/HomeScreen.vue'
@@ -13,7 +13,9 @@ const {
   briefingSignals,
   buyMaxStock,
   buyStock,
+  canBuyMaxSelected,
   canBuySelected,
+  canSellAllSelected,
   canSellSelected,
   cash,
   clearRanking,
@@ -22,12 +24,10 @@ const {
   currentEventTitle,
   currentPhase,
   currentScreen,
-  flashMessage,
   goToResult,
   holdings,
   holdingsMap,
   isFinalSummary,
-  lastAction,
   maxAffordableQuantity,
   nickname,
   nudgeTradeQuantity,
@@ -48,7 +48,6 @@ const {
   selectStock,
   selectedCode,
   selectedHoldingQuantity,
-  selectedStockLocked,
   selectedStock,
   sellAllStock,
   sellStock,
@@ -71,9 +70,13 @@ type TickerItem = {
   tone: TickerTone
 }
 
+type TradeConfirmAction = 'buy' | 'buyMax' | 'sell' | 'sellAll'
+
 const tickerCopies = [0, 1]
 const numberFormatter = new Intl.NumberFormat('ko-KR')
 const showQuitConfirm = ref(false)
+const showTradeConfirm = ref(false)
+const pendingTradeAction = ref<TradeConfirmAction | null>(null)
 
 const formatWon = (value: number) => `${numberFormatter.format(value)}원`
 const formatSignedRate = (value: number) => `${value > 0 ? '+' : ''}${value.toFixed(1)}%`
@@ -137,6 +140,59 @@ const tickerBottomItems = computed<TickerItem[]>(() =>
   })),
 )
 
+const tradeConfirmMeta = computed(() => {
+  const action = pendingTradeAction.value
+
+  if (!action) {
+    return null
+  }
+
+  const quantity = action === 'buyMax'
+    ? maxAffordableQuantity.value
+    : action === 'sellAll'
+      ? selectedHoldingQuantity.value
+      : tradeQuantity.value
+  const total = quantity * selectedStock.value.price
+
+  if (action === 'buy') {
+    return {
+      eyebrow: 'BUY ORDER',
+      title: '매수할까요?',
+      copy: `${selectedStock.value.name} ${quantity}주를 ${formatWon(total)}에 매수해요.`,
+      buttonLabel: '매수하기',
+      buttonClass: 'confirm-buy-button',
+    }
+  }
+
+  if (action === 'buyMax') {
+    return {
+      eyebrow: 'MAX BUY',
+      title: '풀 매수할까요?',
+      copy: `${selectedStock.value.name} ${quantity}주를 한 번에 매수해요.`,
+      buttonLabel: '풀 매수하기',
+      buttonClass: 'confirm-buy-button',
+    }
+  }
+
+  if (action === 'sell') {
+    return {
+      eyebrow: 'SELL ORDER',
+      title: '매도할까요?',
+      copy: `${selectedStock.value.name} ${quantity}주를 매도해요.`,
+      buttonLabel: '매도하기',
+      buttonClass: 'confirm-sell-button',
+    }
+  }
+
+  return {
+    eyebrow: 'SELL ALL',
+    title: '풀 매도할까요?',
+    copy: `${selectedStock.value.name} 보유 수량 ${quantity}주를 전부 매도해요.`,
+    buttonLabel: '풀 매도하기',
+    buttonClass: 'confirm-sell-button',
+  }
+})
+
 const requestQuitGame = () => {
   showQuitConfirm.value = true
 }
@@ -149,51 +205,99 @@ const confirmQuitGame = () => {
   showQuitConfirm.value = false
   resetGame()
 }
+
+const requestTradeConfirm = (action: TradeConfirmAction) => {
+  if (action === 'buy' && !canBuySelected.value) {
+    return
+  }
+
+  if (action === 'buyMax' && !canBuyMaxSelected.value) {
+    return
+  }
+
+  if (action === 'sell' && !canSellSelected.value) {
+    return
+  }
+
+  if (action === 'sellAll' && !canSellAllSelected.value) {
+    return
+  }
+
+  pendingTradeAction.value = action
+  showTradeConfirm.value = true
+}
+
+const cancelTradeConfirm = () => {
+  showTradeConfirm.value = false
+  pendingTradeAction.value = null
+}
+
+const confirmTradeAction = () => {
+  const action = pendingTradeAction.value
+
+  if (!action) {
+    return
+  }
+
+  showTradeConfirm.value = false
+
+  if (action === 'buy') {
+    buyStock()
+  } else if (action === 'buyMax') {
+    buyMaxStock()
+  } else if (action === 'sell') {
+    sellStock()
+  } else {
+    sellAllStock()
+  }
+
+  pendingTradeAction.value = null
+}
 </script>
 
 <template>
-  <div class="app-shell">
-    <div class="market-backdrop" aria-hidden="true">
-      <div class="market-grid"></div>
-      <svg class="market-wave wave-a" viewBox="0 0 600 220" fill="none">
-        <path class="market-wave-path" d="M0 190 52 172 96 184 142 138 188 150 236 112 282 128 330 80 374 106 420 64 466 92 514 38 558 58 600 24" />
+  <div class="app-root">
+    <div class="app-backdrop" aria-hidden="true">
+      <div class="app-backdrop-grid"></div>
+      <svg class="app-backdrop-wave app-backdrop-wave-a" viewBox="0 0 600 220" fill="none">
+        <path class="app-backdrop-wave-path" d="M0 190 52 172 96 184 142 138 188 150 236 112 282 128 330 80 374 106 420 64 466 92 514 38 558 58 600 24" />
       </svg>
-      <svg class="market-wave wave-b" viewBox="0 0 600 220" fill="none">
-        <path class="market-wave-path" d="M0 48 52 66 98 54 146 94 190 78 238 124 286 102 334 152 380 130 428 176 474 156 522 196 560 182 600 210" />
+      <svg class="app-backdrop-wave app-backdrop-wave-b" viewBox="0 0 600 220" fill="none">
+        <path class="app-backdrop-wave-path" d="M0 48 52 66 98 54 146 94 190 78 238 124 286 102 334 152 380 130 428 176 474 156 522 196 560 182 600 210" />
       </svg>
 
-      <div class="ticker ticker-top">
-        <div class="ticker-track">
-          <div v-for="copy in tickerCopies" :key="`top-copy-${copy}`" class="ticker-group">
+      <div class="market-ticker market-ticker-top">
+        <div class="market-ticker-track">
+          <div v-for="copy in tickerCopies" :key="`top-copy-${copy}`" class="market-ticker-group">
             <span
               v-for="item in tickerTopItems"
               :key="`${item.id}-${copy}`"
-              :class="['ticker-item', `tone-${item.tone}`]"
+              :class="['market-ticker-item', `tone-${item.tone}`]"
             >
-              <span class="ticker-label">{{ item.label }}</span>
-              <strong class="ticker-value">{{ item.value }}</strong>
+              <span class="market-ticker-label">{{ item.label }}</span>
+              <strong class="market-ticker-value">{{ item.value }}</strong>
             </span>
           </div>
         </div>
       </div>
 
-      <div class="ticker ticker-bottom">
-        <div class="ticker-track">
-          <div v-for="copy in tickerCopies" :key="`bottom-copy-${copy}`" class="ticker-group">
+      <div class="market-ticker market-ticker-bottom">
+        <div class="market-ticker-track">
+          <div v-for="copy in tickerCopies" :key="`bottom-copy-${copy}`" class="market-ticker-group">
             <span
               v-for="item in tickerBottomItems"
               :key="`${item.id}-${copy}`"
-              :class="['ticker-item', `tone-${item.tone}`]"
+              :class="['market-ticker-item', `tone-${item.tone}`]"
             >
-              <span class="ticker-label">{{ item.label }}</span>
-              <strong class="ticker-value">{{ item.value }}</strong>
+              <span class="market-ticker-label">{{ item.label }}</span>
+              <strong class="market-ticker-value">{{ item.value }}</strong>
             </span>
           </div>
         </div>
       </div>
     </div>
 
-    <main class="page-frame">
+    <main class="app-frame">
       <Transition name="screen" mode="out-in">
         <HomeScreen
           v-if="currentScreen === 'home'"
@@ -209,14 +313,14 @@ const confirmQuitGame = () => {
           :current-event-description="currentEventDescription"
           :current-event-title="currentEventTitle"
           :current-phase="currentPhase"
-          :flash-message="flashMessage"
           :briefing-featured-stocks="briefingFeaturedStocks"
           :briefing-signals="briefingSignals"
+          :can-buy-max-selected="canBuyMaxSelected"
           :can-buy-selected="canBuySelected"
+          :can-sell-all-selected="canSellAllSelected"
           :can-sell-selected="canSellSelected"
           :holdings="holdings"
           :holdings-map="holdingsMap"
-          :last-action="lastAction"
           :max-affordable-quantity="maxAffordableQuantity"
           :phase-buy-count="phaseBuyCount"
           :phase-sell-count="phaseSellCount"
@@ -227,7 +331,6 @@ const confirmQuitGame = () => {
           :score="score"
           :selected-code="selectedCode"
           :selected-holding-quantity="selectedHoldingQuantity"
-          :selected-stock-locked="selectedStockLocked"
           :selected-stock="selectedStock"
           :stocks="stocks"
           :total-assets="totalAssets"
@@ -239,10 +342,10 @@ const confirmQuitGame = () => {
           @select-stock="selectStock($event)"
           @set-trade-quantity="setTradeQuantity($event)"
           @nudge-trade-quantity="nudgeTradeQuantity($event)"
-          @buy="buyStock()"
-          @buy-max="buyMaxStock()"
-          @sell="sellStock()"
-          @sell-all="sellAllStock()"
+          @buy="requestTradeConfirm('buy')"
+          @buy-max="requestTradeConfirm('buyMax')"
+          @sell="requestTradeConfirm('sell')"
+          @sell-all="requestTradeConfirm('sellAll')"
           @advance="advancePhase()"
         />
 
@@ -293,5 +396,23 @@ const confirmQuitGame = () => {
         </section>
       </div>
     </Transition>
+
+    <Transition name="confirm-pop">
+      <div v-if="showTradeConfirm && tradeConfirmMeta" class="confirm-overlay" @click.self="cancelTradeConfirm()">
+        <section class="panel confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="trade-confirm-title">
+          <p class="eyebrow">{{ tradeConfirmMeta.eyebrow }}</p>
+          <h2 id="trade-confirm-title">{{ tradeConfirmMeta.title }}</h2>
+          <p class="confirm-copy">{{ tradeConfirmMeta.copy }}</p>
+
+          <div class="confirm-actions">
+            <button class="secondary-button" @click="cancelTradeConfirm()">다시 보기</button>
+            <button class="primary-button" :class="tradeConfirmMeta.buttonClass" @click="confirmTradeAction()">
+              {{ tradeConfirmMeta.buttonLabel }}
+            </button>
+          </div>
+        </section>
+      </div>
+    </Transition>
   </div>
 </template>
+

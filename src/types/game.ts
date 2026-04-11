@@ -85,15 +85,10 @@ export type PersistedGameState = {
   cash: number
   tradeQuantity: number
   selectedCode: string
-  lastAction: string
   stocks: StockState[]
   holdings: Holding[]
   summary: PhaseSummary | null
   currentPhaseEvent: PhaseEvent
-  currentEventTitle: string
-  currentEventDescription: string
   phaseView: PhaseView
   phaseTradeActions: PhaseTradeAction[]
-  phaseTradeLocked?: boolean
-  phaseDecisionLabel?: string
 }

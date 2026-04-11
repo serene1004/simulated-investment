@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed } from 'vue'
 
 const props = defineProps<{
@@ -56,8 +56,9 @@ const chartGeometry = computed(() => {
 </script>
 
 <template>
-  <svg class="mini-chart" :viewBox="`0 0 ${width} ${height}`" role="img" aria-label="최근 가격 추이">
-    <polygon :points="chartGeometry.areaPoints" :class="positive ? 'chart-area-positive' : 'chart-area-negative'" />
-    <polyline :points="chartGeometry.points" fill="none" :class="positive ? 'chart-line-positive' : 'chart-line-negative'" />
+  <svg class="sparkline-chart" :viewBox="`0 0 ${width} ${height}`" role="img" aria-label="理쒓렐 媛寃?異붿씠">
+    <polygon :points="chartGeometry.areaPoints" :class="positive ? 'sparkline-area-positive' : 'sparkline-area-negative'" />
+    <polyline :points="chartGeometry.points" fill="none" :class="positive ? 'sparkline-line-positive' : 'sparkline-line-negative'" />
   </svg>
 </template>
+

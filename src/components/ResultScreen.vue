@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed } from 'vue'
 
 const props = defineProps<{
@@ -70,30 +70,30 @@ const resultTone = computed(() => {
 </script>
 
 <template>
-  <div class="result-screen-shell">
-    <section class="panel hero-panel result-panel scene-panel">
-      <div class="hero-stack result-stack">
+  <div class="screen-result">
+    <section class="panel screen-panel result-screen-panel scene-panel">
+      <div class="screen-stack result-panel-stack">
         <p class="eyebrow">FINAL RESULT</p>
         <h2>최종 기록</h2>
 
-        <div class="result-hero">
-          <div class="result-emoji">{{ resultTone.emoji }}</div>
-          <div class="result-score">
+        <div class="result-highlight">
+          <div class="result-highlight-emoji">{{ resultTone.emoji }}</div>
+          <div class="result-highlight-score">
             <strong>{{ totalAssets.toLocaleString() }}원</strong>
             <span>{{ resultTone.title }}</span>
           </div>
         </div>
 
-        <p class="result-copy">{{ resultTone.line }}</p>
+        <p class="result-description">{{ resultTone.line }}</p>
 
-        <div class="result-tags">
+        <div class="result-badges">
           <span>{{ score.toLocaleString() }} pt</span>
           <span>{{ returnRate > 0 ? '+' : '' }}{{ returnRate.toFixed(1) }}%</span>
         </div>
 
-        <div class="hero-divider" aria-hidden="true"></div>
+        <div class="screen-divider" aria-hidden="true"></div>
 
-        <div class="nickname-panel result-nickname-panel">
+        <div class="form-field-stack result-name-panel">
           <label for="result-nickname" class="form-label">랭킹에 남길 닉네임</label>
           <input
             id="result-nickname"
@@ -104,10 +104,10 @@ const resultTone = computed(() => {
             @input="onInput"
             @keydown.enter.prevent="submitRegister"
           />
-          <p class="result-input-hint">랭킹에 남길 때만 잠깐 써요.</p>
+          <p class="result-field-hint">랭킹에 남길 때만 잠깐 써요.</p>
         </div>
 
-        <div class="hero-actions center-actions">
+        <div class="screen-actions screen-actions-center">
           <button class="primary-button" :disabled="!canRegister" @click="submitRegister">랭킹에 남기기</button>
           <button class="secondary-button" @click="$emit('restart')">한 판 더 하기</button>
         </div>

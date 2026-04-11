@@ -27,8 +27,6 @@ const props = defineProps({
   selectedHoldingQuantity: { type: Number, required: true },
   holdings: { type: Array as PropType<Holding[]>, required: true },
   holdingsMap: { type: Object as PropType<Record<string, Holding>>, required: true },
-  lastAction: { type: String, required: true },
-  flashMessage: { type: String, required: true },
   currentEventTitle: { type: String, required: true },
   currentEventDescription: { type: String, required: true },
   briefingSignals: { type: Array as PropType<BriefingSignal[]>, required: true },
@@ -38,8 +36,9 @@ const props = defineProps({
   phaseBuyCount: { type: Number, required: true },
   phaseSellCount: { type: Number, required: true },
   phaseTradeLocked: { type: Boolean, required: true },
-  selectedStockLocked: { type: Boolean, required: true },
+  canBuyMaxSelected: { type: Boolean, required: true },
   canBuySelected: { type: Boolean, required: true },
+  canSellAllSelected: { type: Boolean, required: true },
   canSellSelected: { type: Boolean, required: true },
 })
 
@@ -61,9 +60,17 @@ const updateTradeQuantity = (event: Event) => {
   emit('setTradeQuantity', Math.max(1, Math.floor(Number((event.target as HTMLInputElement).value) || 1)))
 }
 
+const selectHoldingFromDesk = (code: string) => {
+  emit('selectStock', code)
+
+  if (props.phaseView !== 'trade') {
+    emit('showTrade')
+  }
+}
+
 const getStockByCode = (code: string) => props.stocks.find((stock) => stock.code === code)
 
-const quantityControlDisabled = computed(() => !props.canBuySelected && !props.canSellSelected)
+const quantityControlDisabled = computed(() => !props.canBuyMaxSelected && !props.canSellAllSelected)
 const investedValue = computed(() => Math.max(0, props.totalAssets - props.cash))
 const holdingCount = computed(() => props.holdings.length)
 const totalHoldingQuantity = computed(() => props.holdings.reduce((sum, holding) => sum + holding.quantity, 0))
@@ -79,8 +86,7 @@ const deskHoldings = computed(() =>
         currentValue: (stock?.price ?? 0) * holding.quantity,
       }
     })
-    .sort((left, right) => right.currentValue - left.currentValue)
-    .slice(0, 3),
+    .sort((left, right) => right.currentValue - left.currentValue),
 )
 
 const phasePillLabel = computed(() => {
@@ -94,56 +100,24 @@ const phasePillLabel = computed(() => {
 
   return '브리핑 보는 중'
 })
-
-const selectedStockTradeHint = computed(() => {
-  if (props.phaseTradeLocked) {
-    return '이번 페이즈에서는 더 거래할 수 없어요. 다음 페이즈로 넘어가서 가격이 어떻게 움직였는지 볼까요?'
-  }
-
-  if (props.selectedStockLocked) {
-    return '이 종목은 이번 페이즈에서 이미 거래했어요. 다른 종목으로 이어서 가보면 돼요.'
-  }
-
-  if (!props.canBuySelected && props.canSellSelected) {
-    return '지금은 매도만 할 수 있는 종목이에요.'
-  }
-
-  if (props.canBuySelected && !props.canSellSelected) {
-    return '지금은 매수만 할 수 있는 종목이에요.'
-  }
-
-  if (quantityControlDisabled.value) {
-    return '지금은 수량을 조정할 수 없어요. 다른 종목이나 보유 현황을 같이 봐보세요.'
-  }
-
-  return ''
-})
-
-const tradeStatusMessage = computed(() => {
-  if (selectedStockTradeHint.value) {
-    return selectedStockTradeHint.value
-  }
-
-  return props.flashMessage || props.lastAction
-})
 </script>
 
 <template>
-  <section class="game-layout scene-panel">
-    <section class="panel market-hero">
-      <div class="market-hero-top">
-        <div class="market-hero-copy">
+  <section class="board-layout scene-panel">
+    <section class="panel board-header">
+      <div class="board-header-row">
+        <div class="board-header-copy">
           <p class="eyebrow">PHASE {{ currentPhase }}</p>
           <h1>{{ phaseView === 'briefing' ? '브리핑' : '투자 데스크' }}</h1>
-          <p class="market-hero-text">
+          <p class="board-header-text">
             {{ phaseView === 'briefing'
               ? '개장 전 흐름을 먼저 보고 오늘 볼 종목을 빠르게 골라봐요.'
               : '선택한 종목 가격과 보유 현황을 같이 보면서 바로 사고팔 수 있어요.' }}
           </p>
 
-          <div class="market-view-switch" aria-label="화면 전환">
+          <div class="board-view-switch" aria-label="화면 전환">
             <button
-              class="market-view-card"
+              class="board-view-switch-button"
               :class="{ active: phaseView === 'briefing' }"
               @click="$emit('showBriefing')"
             >
@@ -151,7 +125,7 @@ const tradeStatusMessage = computed(() => {
               <strong>보러 가기</strong>
             </button>
             <button
-              class="market-view-card"
+              class="board-view-switch-button"
               :class="{ active: phaseView === 'trade' }"
               @click="$emit('showTrade')"
             >
@@ -161,20 +135,28 @@ const tradeStatusMessage = computed(() => {
           </div>
         </div>
 
-        <aside class="desk-holdings">
-          <div class="desk-holdings-head">
+        <aside class="holdings-panel">
+          <div class="holdings-panel-header">
             <div>
               <span>내 보유현황</span>
               <strong>{{ holdingCount }}종목</strong>
             </div>
-            <div class="desk-holdings-head-right">
-              <span class="desk-phase-chip">PHASE {{ currentPhase }} / {{ totalPhases }}</span>
+            <div class="holdings-panel-actions">
+              <span class="holdings-phase-chip">PHASE {{ currentPhase }} / {{ totalPhases }}</span>
               <strong class="score-chip">{{ score.toLocaleString() }} pt</strong>
-              <button class="ghost-button market-exit-button" @click="$emit('quit')">그만하기</button>
+              <button class="surface-button board-exit-button" @click="$emit('quit')">
+                <svg class="board-exit-icon" viewBox="0 0 20 20" aria-hidden="true">
+                  <path
+                    d="M8.5 4.25a.75.75 0 0 1 .75-.75h5a1.5 1.5 0 0 1 1.5 1.5v10a1.5 1.5 0 0 1-1.5 1.5h-5a.75.75 0 0 1 0-1.5h5V5h-5a.75.75 0 0 1-.75-.75Zm-.72 2.22a.75.75 0 0 1 1.06 0l2.75 2.75a.75.75 0 0 1 0 1.06L8.84 13.03a.75.75 0 1 1-1.06-1.06l1.47-1.47H4.75a.75.75 0 0 1 0-1.5h4.5L7.78 7.53a.75.75 0 0 1 0-1.06Z"
+                    fill="currentColor"
+                  />
+                </svg>
+                <span>그만하기</span>
+              </button>
             </div>
           </div>
 
-          <div class="desk-holdings-metrics">
+          <div class="holdings-metric-grid">
             <article>
               <span>투입 금액</span>
               <strong>{{ investedValue.toLocaleString() }}원</strong>
@@ -193,29 +175,38 @@ const tradeStatusMessage = computed(() => {
             </article>
           </div>
 
-          <div v-if="deskHoldings.length > 0" class="desk-holdings-list">
-            <article v-for="holding in deskHoldings" :key="holding.code" class="desk-holding-row">
-              <div class="holding-name-line">
-                <StockIcon :code="holding.code" size="sm" />
-                <strong>{{ holding.name }}</strong>
-              </div>
-              <span>{{ holding.quantity }}주 · {{ holding.currentValue.toLocaleString() }}원</span>
-            </article>
-          </div>
+          <Transition name="detail-fade" mode="out-in">
+            <div v-if="deskHoldings.length > 0" key="holdings-list" class="holdings-list">
+              <button
+                v-for="holding in deskHoldings"
+                :key="holding.code"
+                type="button"
+                class="holdings-item"
+                :class="{ selected: selectedCode === holding.code }"
+                @click="selectHoldingFromDesk(holding.code)"
+              >
+                <div class="holding-name-line">
+                  <StockIcon :code="holding.code" size="sm" />
+                  <strong>{{ holding.name }}</strong>
+                </div>
+                <span>{{ holding.quantity }}주 · {{ holding.currentValue.toLocaleString() }}원</span>
+              </button>
+            </div>
 
-          <div v-else class="desk-holdings-empty">
-            <strong>아직 담아 둔 종목이 없어요.</strong>
-            <span>브리핑 보고 이번 페이즈 첫 포지션을 잡아봐요.</span>
-          </div>
+            <div v-else key="holdings-empty" class="holdings-empty">
+              <strong>아직 담아 둔 종목이 없어요.</strong>
+              <span>브리핑 보고 이번 페이즈 첫 포지션을 잡아봐요.</span>
+            </div>
+          </Transition>
         </aside>
       </div>
     </section>
 
-    <div class="phase-carousel">
+    <div class="phase-stage">
       <Transition name="phase-panel" mode="out-in">
-        <section v-if="phaseView === 'briefing'" key="briefing" class="phase-slide phase-slide-briefing">
-          <div class="briefing-layout">
-            <section class="panel briefing-spotlight">
+        <section v-if="phaseView === 'briefing'" key="briefing" class="phase-stage-panel phase-stage-briefing">
+          <div class="briefing-grid">
+            <section class="panel briefing-hero">
               <div class="section-header">
                 <div>
                   <p class="eyebrow">PRE-MARKET SIGNAL</p>
@@ -224,13 +215,13 @@ const tradeStatusMessage = computed(() => {
                 <span class="event-pill">{{ phasePillLabel }}</span>
               </div>
 
-              <p class="briefing-copy">{{ currentEventDescription }}</p>
+              <p class="briefing-description">{{ currentEventDescription }}</p>
 
-              <div class="briefing-signal-grid">
+              <div class="briefing-signal-list">
                 <article
                   v-for="signal in briefingSignals"
                   :key="signal.id"
-                  class="briefing-signal-card"
+                  class="briefing-signal-item"
                   :class="`tone-${signal.tone}`"
                 >
                   <span>{{ signal.label }}</span>
@@ -239,7 +230,7 @@ const tradeStatusMessage = computed(() => {
               </div>
             </section>
 
-            <section class="panel briefing-watchlist">
+            <section class="panel briefing-watch-panel">
               <div class="section-header">
                 <div>
                   <p class="eyebrow">WATCHLIST PICKS</p>
@@ -248,16 +239,16 @@ const tradeStatusMessage = computed(() => {
                 <span class="stock-count-chip">{{ briefingFeaturedStocks.length }}개 포인트</span>
               </div>
 
-              <div class="featured-stock-grid">
+              <div class="feature-market-list">
                 <button
                   v-for="stock in briefingFeaturedStocks"
                   :key="stock.code"
-                  class="featured-stock-card"
+                  class="feature-stock-item"
                   :class="[`tone-${stock.tone}`, { selected: stock.code === selectedCode }]"
                   @click="$emit('selectStock', stock.code)"
                 >
-                  <div class="featured-stock-top">
-                    <div class="featured-stock-copy">
+                  <div class="feature-stock-head">
+                    <div class="feature-stock-copy">
                       <div class="stock-name-line">
                         <StockIcon :code="stock.code" size="sm" />
                         <strong>{{ stock.name }}</strong>
@@ -268,7 +259,7 @@ const tradeStatusMessage = computed(() => {
                       {{ stock.changeRate > 0 ? '+' : '' }}{{ stock.changeRate.toFixed(1) }}%
                     </em>
                   </div>
-                  <div class="featured-stock-bottom">
+                  <div class="feature-stock-foot">
                     <small>{{ stock.reason }}</small>
                     <MiniChart
                       :values="getStockByCode(stock.code)?.history ?? [stock.price, stock.price]"
@@ -279,7 +270,7 @@ const tradeStatusMessage = computed(() => {
               </div>
             </section>
 
-            <section class="panel briefing-focus">
+            <section class="panel briefing-focus-panel">
               <div class="section-header">
                 <div>
                   <p class="eyebrow">FOCUS STOCK</p>
@@ -292,13 +283,13 @@ const tradeStatusMessage = computed(() => {
               </div>
 
               <Transition name="detail-fade" mode="out-in">
-                <div :key="selectedStock.code" class="briefing-focus-card">
+                <div :key="selectedStock.code" class="focus-panel">
                   <div
-                    class="price-card briefing-price-card"
+                    class="price-card focus-price-panel"
                     :class="selectedStock.changeRate > 0 ? 'tone-rise' : selectedStock.changeRate < 0 ? 'tone-fall' : 'tone-neutral'"
                   >
-                    <div class="briefing-price-top">
-                      <div class="briefing-price-copy">
+                    <div class="focus-price-header">
+                      <div class="focus-price-copy">
                         <span>현재 가격</span>
                         <strong>{{ selectedStock.price.toLocaleString() }}원</strong>
                       </div>
@@ -307,12 +298,12 @@ const tradeStatusMessage = computed(() => {
                       </em>
                     </div>
 
-                    <div class="briefing-price-bottom">
+                    <div class="focus-price-chart">
                       <MiniChart :values="selectedStock.history" :positive="selectedStock.changeRate >= 0" />
                     </div>
                   </div>
 
-                  <div class="briefing-mini-grid">
+                  <div class="focus-metric-grid">
                     <article>
                       <span>보유 수량</span>
                       <strong>{{ selectedHoldingQuantity }}주</strong>
@@ -332,9 +323,9 @@ const tradeStatusMessage = computed(() => {
           </div>
         </section>
 
-        <section v-else key="trade" class="phase-slide phase-slide-trade">
+        <section v-else key="trade" class="phase-stage-panel phase-stage-trading">
           <div class="main-grid enhanced-grid">
-            <section class="panel stock-panel board-panel">
+            <section class="panel market-panel board-panel">
               <div class="section-header">
                 <div>
                   <p class="eyebrow">MARKET BOARD</p>
@@ -343,24 +334,24 @@ const tradeStatusMessage = computed(() => {
                 <span class="stock-count-chip">{{ stocks.length }}개 종목</span>
               </div>
 
-              <div class="stock-list compact-stock-list">
+              <div class="market-list market-list-compact">
                 <button
                   v-for="stock in stocks"
                   :key="stock.code"
-                  class="stock-row"
+                  class="market-list-item"
                   :class="{ selected: selectedCode === stock.code }"
                   @click="$emit('selectStock', stock.code)"
                 >
-                  <div class="stock-row-copy">
+                  <div class="market-list-copy">
                     <div class="stock-name-line">
                       <StockIcon :code="stock.code" size="sm" />
                       <strong>{{ stock.name }}</strong>
                     </div>
                     <span>{{ stock.theme }} · {{ stock.riskLabel }}</span>
                   </div>
-                  <div class="stock-row-right">
+                  <div class="market-list-side">
                     <MiniChart :values="stock.history" :positive="stock.changeRate >= 0" />
-                    <div class="stock-metrics">
+                    <div class="market-list-metrics">
                       <strong>{{ stock.price.toLocaleString() }}원</strong>
                       <span :class="stock.changeRate >= 0 ? 'up' : 'down'">
                         {{ stock.changeRate > 0 ? '+' : '' }}{{ stock.changeRate.toFixed(1) }}%
@@ -371,8 +362,8 @@ const tradeStatusMessage = computed(() => {
               </div>
             </section>
 
-            <section class="panel detail-panel board-panel trade-workspace-panel" :class="{ locked: phaseTradeLocked }">
-              <div class="detail-top trade-workspace-head">
+            <section class="panel detail-panel board-panel trade-workspace" :class="{ locked: phaseTradeLocked }">
+              <div class="detail-top trade-workspace-header">
                 <div>
                   <p class="eyebrow">TRADE WORKSPACE</p>
                   <div class="title-with-icon">
@@ -380,7 +371,7 @@ const tradeStatusMessage = computed(() => {
                     <h2>{{ selectedStock.name }}</h2>
                   </div>
                 </div>
-                <div class="detail-top-actions trade-workspace-meta">
+                <div class="detail-top-actions trade-workspace-header-meta">
                   <span class="risk-badge">{{ selectedStock.riskLabel }}</span>
                   <div class="trade-slot-mini">
                     <span :class="{ used: phaseBuyCount > 0 }">BUY {{ phaseBuyCount }}</span>
@@ -389,16 +380,16 @@ const tradeStatusMessage = computed(() => {
                 </div>
               </div>
 
-              <div class="trade-workspace-grid">
-                <section class="trade-detail-panel">
+              <div class="trade-workspace-layout">
+                <section class="trade-summary-panel">
                   <Transition name="detail-fade" mode="out-in">
-                    <div :key="selectedStock.code" class="detail-focus-card">
+                    <div :key="selectedStock.code" class="trade-summary-card">
                       <div
-                        class="price-card briefing-price-card trade-price-card"
+                        class="price-card focus-price-panel trade-price-card"
                         :class="selectedStock.changeRate > 0 ? 'tone-rise' : selectedStock.changeRate < 0 ? 'tone-fall' : 'tone-neutral'"
                       >
-                        <div class="briefing-price-top">
-                          <div class="briefing-price-copy">
+                        <div class="focus-price-header">
+                          <div class="focus-price-copy">
                             <span>현재 가격</span>
                             <strong>{{ selectedStock.price.toLocaleString() }}원</strong>
                           </div>
@@ -407,12 +398,12 @@ const tradeStatusMessage = computed(() => {
                           </em>
                         </div>
 
-                        <div class="briefing-price-bottom">
+                        <div class="focus-price-chart">
                           <MiniChart :values="selectedStock.history" :positive="selectedStock.changeRate >= 0" />
                         </div>
                       </div>
 
-                      <div class="info-grid info-grid-wide trade-info-grid">
+                      <div class="info-grid info-grid-wide trade-stats-grid">
                         <article>
                           <span>테마</span>
                           <strong>{{ selectedStock.theme }}</strong>
@@ -434,9 +425,9 @@ const tradeStatusMessage = computed(() => {
                   </Transition>
                 </section>
 
-                <section class="trade-panel trade-side-panel">
-                  <div class="trade-control-stack">
-                    <div class="quantity-stepper">
+                <section class="trade-control-panel trade-control-panel-side">
+                  <div class="trade-control-group">
+                    <div class="quantity-stepper-control">
                       <button
                         class="stepper-button"
                         :disabled="quantityControlDisabled || tradeQuantity <= 1"
@@ -455,7 +446,7 @@ const tradeStatusMessage = computed(() => {
                       <button class="stepper-button" :disabled="quantityControlDisabled" @click="$emit('nudgeTradeQuantity', 1)">+</button>
                     </div>
 
-                    <div class="quantity-chips">
+                    <div class="quantity-preset-list">
                       <button
                         class="pill-button"
                         :disabled="quantityControlDisabled"
@@ -479,21 +470,14 @@ const tradeStatusMessage = computed(() => {
                       </button>
                     </div>
 
-                    <div class="trade-actions trade-actions-primary">
-                      <button class="action-button buy-button" :disabled="!canBuySelected" @click="$emit('buy')">매수 실행</button>
-                      <button class="action-button sell-button" :disabled="!canSellSelected" @click="$emit('sell')">매도 실행</button>
+                    <div class="trade-action-row trade-action-grid">
+                      <button class="utility-button buy-utility-button" :disabled="!canBuyMaxSelected" @click="$emit('buyMax')">풀 매수</button>
+                      <button class="action-button buy-button" :disabled="!canBuySelected" @click="$emit('buy')">매수</button>
+                      <button class="action-button sell-button" :disabled="!canSellSelected" @click="$emit('sell')">매도</button>
+                      <button class="utility-button sell-utility-button" :disabled="!canSellAllSelected" @click="$emit('sellAll')">풀 매도</button>
                     </div>
 
-                    <div class="trade-actions trade-actions-secondary">
-                      <button class="utility-button" :disabled="!canBuySelected" @click="$emit('buyMax')">살 수 있는 만큼 매수</button>
-                      <button class="utility-button" :disabled="!canSellSelected" @click="$emit('sellAll')">들고 있는 수량 전부 매도</button>
-                    </div>
-
-                    <div v-if="tradeStatusMessage" class="trade-inline-status">
-                      <span>{{ tradeStatusMessage }}</span>
-                    </div>
-
-                    <button class="primary-button full-width pulse-cta" @click="$emit('advance')">
+                    <button class="primary-button full-width phase-advance-cta" @click="$emit('advance')">
                       {{ phaseTradeCount > 0 ? '가격 움직임 보기' : '이번 페이즈 넘기기' }}
                     </button>
                   </div>
@@ -506,3 +490,4 @@ const tradeStatusMessage = computed(() => {
     </div>
   </section>
 </template>
+
