@@ -284,9 +284,6 @@ button:focus-visible {
 }
 
 .screen-panel,
-.summary-screen-panel,
-.result-screen-panel,
-.ranking-screen-panel,
 .board-header,
 .market-panel,
 .detail-panel,
@@ -348,17 +345,15 @@ h3 {
   font-size: clamp(1rem, 1.2vw, 1.16rem);
 }
 
-.screen-home,
-.screen-ranking,
-.screen-result,
-.screen-summary {
+.screen-shell {
   min-height: calc(100svh - 5.75rem);
   display: grid;
   align-items: center;
 }
 
 .screen-panel {
-  min-width: 480px;
+  width: min(100%, 780px);
+  min-width: 0;
   max-width: 780px;
   margin-inline: auto;
 }
@@ -368,6 +363,7 @@ h3 {
   line-height: 0.92;
   max-width: none;
   white-space: nowrap;
+  text-wrap: balance;
 }
 
 .screen-stack,
@@ -695,8 +691,9 @@ h3 {
   gap: 0.75rem;
 }
 
-.section-header > div,
-.detail-top > div:first-child {
+.section-heading,
+.detail-heading,
+.holdings-panel-summary {
   display: grid;
   gap: 0.18rem;
 }
@@ -941,15 +938,14 @@ h3 {
   letter-spacing: 0.06em;
 }
 
-.holdings-panel-header,
-.holdings-item {
+.holdings-panel-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 0.85rem;
 }
 
-.holdings-panel-header > div:first-child > span,
+.holdings-panel-summary > span,
 .holdings-metric-grid > article > span,
 .holdings-item > span,
 .holdings-empty > span {
@@ -958,7 +954,7 @@ h3 {
   font-size: 0.82rem;
 }
 
-.holdings-panel-header > div:first-child > strong {
+.holdings-panel-summary > strong {
   display: block;
   margin-top: 0.16rem;
 }
@@ -1886,19 +1882,16 @@ h3 {
 }
 
 .summary-event-panel {
-  margin-top: 0.85rem;
+  margin-top: 0;
   padding: 0.9rem 1rem;
   border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(201, 138, 29, 0.08), transparent 56%),
+    var(--bg-soft);
 }
 
 .trade-control-panel-side .full-width {
   margin-top: 0;
-}
-
-.summary-event-panel {
-  background:
-    linear-gradient(135deg, rgba(201, 138, 29, 0.08), transparent 56%),
-    var(--bg-soft);
 }
 
 .full-width {
@@ -1944,7 +1937,7 @@ h3 {
   gap: 0.82rem;
 }
 
-.summary-screen-panel .section-header > div {
+.summary-screen-panel .section-heading {
   justify-items: start;
   text-align: left;
 }
@@ -2071,10 +2064,6 @@ h3 {
 }
 
 .summary-grid {
-  margin-top: 0;
-}
-
-.summary-event-panel {
   margin-top: 0;
 }
 
@@ -2269,16 +2258,105 @@ h3 {
 
 }
 
+@media (max-width: 1180px) {
+  .board-header-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .board-header-copy,
+  .holdings-panel {
+    max-width: none;
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 1100px) {
+  .phase-stage-trading .main-grid.enhanced-grid {
+    grid-template-columns: 1fr;
+    gap: 0.9rem;
+  }
+
+  .phase-stage-trading .trade-workspace {
+    order: 1;
+  }
+
+  .phase-stage-trading .trade-workspace-layout {
+    grid-template-columns: minmax(0, 3fr) minmax(18rem, 2fr);
+    gap: 0.9rem;
+  }
+
+  .phase-stage-trading .trade-summary-panel {
+    padding-right: 0.08rem;
+  }
+
+  .phase-stage-trading .trade-control-panel-side {
+    padding: 0 0 0 0.9rem;
+  }
+
+  .phase-stage-trading .trade-control-panel-side::before {
+    left: 0.16rem;
+    right: auto;
+    top: 0.35rem;
+    bottom: 0.35rem;
+    width: 1px;
+    height: auto;
+  }
+
+  .phase-stage-trading .market-panel {
+    order: 2;
+  }
+
+  .phase-stage-trading .market-list-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.62rem;
+    max-height: min(22rem, 42svh);
+  }
+
+  .phase-stage-trading .market-list-item {
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 0.7rem;
+    padding: 0.82rem 0.88rem;
+  }
+
+  .phase-stage-trading .market-list-side {
+    width: 100%;
+    justify-content: space-between;
+    gap: 0.55rem;
+  }
+
+  .phase-stage-trading .market-list-metrics {
+    text-align: right;
+  }
+
+  .phase-stage-trading .market-list-side .sparkline-chart {
+    width: clamp(4rem, 10vw, 5rem);
+  }
+}
+
+@media (max-width: 860px) {
+  .screen-panel h1 {
+    white-space: normal;
+  }
+
+  .screen-actions {
+    width: 100%;
+  }
+
+  .screen-actions > * {
+    width: 100%;
+  }
+}
+
 @media (max-width: 980px) {
   .app-frame {
     width: min(100vw - 20px, 1480px);
     padding-bottom: 28px;
   }
 
-  .screen-home,
-  .screen-ranking,
-  .screen-result,
-  .screen-summary {
+  .screen-shell {
     min-height: calc(100svh - 4.75rem);
   }
 
@@ -2316,16 +2394,15 @@ h3 {
   .board-header-row {
     display: grid;
     grid-template-columns: 1fr;
+    gap: 0.78rem;
   }
 
   .board-header-copy {
+    gap: 0.62rem;
     max-width: none;
   }
 
   .screen-panel,
-  .summary-screen-panel,
-  .result-screen-panel,
-  .ranking-screen-panel,
   .board-header,
   .market-panel,
   .detail-panel,
@@ -2351,6 +2428,47 @@ h3 {
     text-align: left;
   }
 
+  .board-header {
+    gap: 0.8rem;
+  }
+
+  .board-view-switch {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: min(100%, 22rem);
+    gap: 0.5rem;
+  }
+
+  .board-view-switch-button {
+    min-height: 3.35rem;
+    padding: 0.62rem 0.8rem;
+  }
+
+  .holdings-panel {
+    width: 100%;
+    min-width: 0;
+    gap: 0.62rem;
+    padding: 0.84rem 0.9rem;
+  }
+
+  .holdings-panel-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.7rem;
+  }
+
+  .holdings-panel-actions {
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .holdings-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.48rem;
+  }
+
   .market-list-side {
     width: 100%;
     justify-content: space-between;
@@ -2365,16 +2483,77 @@ h3 {
     width: 100%;
   }
 
+  .phase-stage-trading .market-list-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.62rem;
+    align-items: center;
+    padding: 0.78rem 0.84rem;
+  }
+
+  .phase-stage-trading .market-list-side {
+    width: auto;
+    justify-content: flex-end;
+    gap: 0.55rem;
+  }
+
+  .phase-stage-trading .market-list-metrics {
+    text-align: right;
+  }
+
+  .phase-stage-trading .market-list-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.58rem;
+  }
+
+  .phase-stage-trading .market-list-side .sparkline-chart {
+    width: clamp(3.6rem, 8vw, 4.6rem);
+  }
+
+  .phase-stage-trading .trade-workspace-layout {
+    gap: 0.82rem;
+  }
+
+  .phase-stage-trading .trade-control-group {
+    gap: 0.72rem;
+  }
+
+  .phase-stage-trading .trade-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .phase-stage-trading .quantity-preset-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.42rem;
+  }
+
+  .phase-stage-trading .quantity-preset-list .pill-button {
+    min-height: 2.3rem;
+    padding-inline: 0.56rem;
+    font-size: 0.8rem;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
+
+  .phase-stage-trading .trade-action-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.42rem;
+  }
+
+  .phase-stage-trading .trade-action-grid .action-button,
+  .phase-stage-trading .trade-action-grid .utility-button {
+    min-height: 2.65rem;
+    padding-inline: 0.38rem;
+    font-size: 0.82rem;
+    letter-spacing: -0.02em;
+  }
+
   .trade-slot-mini {
     justify-content: flex-start;
   }
 
-  .holdings-metric-grid,
   .holdings-list {
     grid-template-columns: 1fr;
-  }
-
-  .holdings-list {
     max-height: 15rem;
   }
 
@@ -2385,15 +2564,132 @@ h3 {
   }
 }
 
+@media (max-width: 760px) {
+  .feature-stock-head,
+  .feature-stock-foot,
+  .focus-price-header {
+    grid-template-columns: 1fr;
+  }
+
+  .market-list-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.62rem;
+    align-items: center;
+  }
+
+  .market-list-side {
+    width: auto;
+    justify-content: flex-end;
+    gap: 0.55rem;
+  }
+
+  .market-list-metrics {
+    text-align: right;
+  }
+
+  .focus-price-chart {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .market-list-side .sparkline-chart,
+  .focus-price-chart .sparkline-chart {
+    width: clamp(3.8rem, 18vw, 5.6rem);
+  }
+
+  .phase-stage-trading .trade-price-card {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 0.8rem;
+    padding-block: 0.84rem;
+  }
+
+  .phase-stage-trading .trade-price-card .focus-price-header {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.28rem;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .phase-stage-trading .trade-price-card .focus-price-header em {
+    margin-top: 0;
+    line-height: 1.05;
+  }
+
+  .phase-stage-trading .trade-price-card .focus-price-chart {
+    width: auto;
+    justify-content: flex-end;
+    flex: 0 0 auto;
+  }
+
+  .phase-stage-trading .trade-price-card .focus-price-chart .sparkline-chart {
+    width: clamp(4.4rem, 16vw, 5.2rem);
+    height: 2.35rem;
+  }
+
+  .phase-stage-trading .trade-workspace-layout {
+    grid-template-columns: 1fr;
+    gap: 0.82rem;
+  }
+
+  .phase-stage-trading .trade-control-group {
+    gap: 0.72rem;
+  }
+
+  .phase-stage-trading .trade-control-panel-side {
+    padding: 1rem 0 0;
+  }
+
+  .phase-stage-trading .trade-control-panel-side::before {
+    left: 0;
+    right: 0;
+    top: 0.1rem;
+    bottom: auto;
+    width: auto;
+    height: 1px;
+  }
+
+  .phase-stage-trading .market-list-compact {
+    grid-template-columns: 1fr;
+  }
+
+  .phase-stage-trading .quantity-preset-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    gap: 0.42rem;
+  }
+
+  .phase-stage-trading .quantity-preset-list .pill-button {
+    min-height: 2.3rem;
+    padding-inline: 0.56rem;
+    font-size: 0.8rem;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
+
+  .phase-stage-trading .trade-action-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.42rem;
+  }
+
+  .phase-stage-trading .trade-action-grid .action-button,
+  .phase-stage-trading .trade-action-grid .utility-button {
+    min-height: 2.65rem;
+    padding-inline: 0.38rem;
+    font-size: 0.82rem;
+    letter-spacing: -0.02em;
+  }
+}
+
 @media (max-width: 680px) {
   h1 {
     font-size: clamp(2rem, 8vw, 3rem);
   }
 
-  .screen-home,
-  .screen-ranking,
-  .screen-result,
-  .screen-summary {
+  .screen-shell {
     min-height: auto;
     align-items: start;
   }
@@ -2416,21 +2712,25 @@ h3 {
     height: 0.34rem;
   }
 
-  .board-view-switch,
   .feature-stock-foot,
   .focus-metric-grid,
-  .briefing-signal-list,
-  .quantity-stepper-control {
+  .briefing-signal-list {
     grid-template-columns: 1fr;
-  }
-
-  .trade-action-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .board-view-switch {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
+    gap: 0.45rem;
+  }
+
+  .board-view-switch-button {
+    min-height: 3.05rem;
+    padding: 0.58rem 0.7rem;
+  }
+
+  .phase-stage-trading .trade-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .board-view-switch-button,
@@ -2448,16 +2748,62 @@ h3 {
     width: auto;
   }
 
+  .holdings-panel-header {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .holdings-panel-actions {
+    display: grid;
+    grid-template-columns: repeat(3, max-content);
+    align-items: center;
+    justify-content: start;
+    gap: 0.36rem;
+  }
+
+  .holdings-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .holdings-phase-chip,
+  .score-chip {
+    min-height: 2rem;
+    padding: 0.34rem 0.68rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+
+  .board-exit-button {
+    min-height: 2rem;
+    padding-inline: 0.72rem;
+    white-space: nowrap;
+  }
+
   .confirm-actions {
     width: 100%;
   }
 
-  .quantity-stepper-control {
-    display: grid;
-  }
-
   .stepper-button {
     min-height: 2.75rem;
+  }
+}
+
+@media (max-width: 430px) {
+  .holdings-panel-actions {
+    grid-template-columns: repeat(2, max-content);
+  }
+
+  .board-exit-button {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 540px) {
+  .phase-stage-trading .trade-workspace-header-meta {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 

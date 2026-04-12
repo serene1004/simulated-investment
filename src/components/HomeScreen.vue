@@ -6,7 +6,7 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="screen-home">
+  <div class="screen-shell screen-home">
     <section class="panel screen-panel scene-panel">
       <div class="screen-stack home-screen-stack">
         <p class="eyebrow">STOCK SURVIVAL DASH</p>

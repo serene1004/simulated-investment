@@ -70,7 +70,7 @@ const resultTone = computed(() => {
 </script>
 
 <template>
-  <div class="screen-result">
+  <div class="screen-shell screen-result">
     <section class="panel screen-panel result-screen-panel scene-panel">
       <div class="screen-stack result-panel-stack">
         <p class="eyebrow">FINAL RESULT</p>

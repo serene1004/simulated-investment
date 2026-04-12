@@ -83,11 +83,11 @@ const reaction = computed(() => {
 </script>
 
 <template>
-  <div class="screen-summary">
+  <div class="screen-shell screen-summary">
     <section class="panel screen-panel summary-screen-panel scene-panel" :class="`summary-tone-${reaction.tone}`">
       <div class="screen-stack summary-screen-panel-stack">
         <div class="section-header">
-          <div>
+          <div class="section-heading">
             <p class="eyebrow">PHASE RESULT</p>
             <h2>{{ summary.phaseNumber }}페이즈 요약</h2>
           </div>

@@ -30,8 +30,8 @@ const getToneClass = (index: number) => {
 </script>
 
 <template>
-  <div class="screen-ranking">
-    <section class="panel screen-panel ranking-screen-panel scene-panel">
+  <div class="screen-shell screen-ranking">
+    <section class="panel screen-panel scene-panel">
       <div class="screen-stack">
         <p class="eyebrow">TOP 10</p>
         <h1>랭킹 보드</h1>

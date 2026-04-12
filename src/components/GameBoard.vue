@@ -137,7 +137,7 @@ const phasePillLabel = computed(() => {
 
         <aside class="holdings-panel">
           <div class="holdings-panel-header">
-            <div>
+            <div class="holdings-panel-summary">
               <span>내 보유현황</span>
               <strong>{{ holdingCount }}종목</strong>
             </div>
@@ -208,7 +208,7 @@ const phasePillLabel = computed(() => {
           <div class="briefing-grid">
             <section class="panel briefing-hero">
               <div class="section-header">
-                <div>
+                <div class="section-heading">
                   <p class="eyebrow">PRE-MARKET SIGNAL</p>
                   <h2>{{ currentEventTitle }}</h2>
                 </div>
@@ -232,7 +232,7 @@ const phasePillLabel = computed(() => {
 
             <section class="panel briefing-watch-panel">
               <div class="section-header">
-                <div>
+                <div class="section-heading">
                   <p class="eyebrow">WATCHLIST PICKS</p>
                   <h3>핵심 종목 후보</h3>
                 </div>
@@ -272,7 +272,7 @@ const phasePillLabel = computed(() => {
 
             <section class="panel briefing-focus-panel">
               <div class="section-header">
-                <div>
+                <div class="section-heading">
                   <p class="eyebrow">FOCUS STOCK</p>
                   <div class="title-with-icon compact">
                     <StockIcon :code="selectedStock.code" size="sm" />
@@ -327,7 +327,7 @@ const phasePillLabel = computed(() => {
           <div class="main-grid enhanced-grid">
             <section class="panel market-panel board-panel">
               <div class="section-header">
-                <div>
+                <div class="section-heading">
                   <p class="eyebrow">MARKET BOARD</p>
                   <h2>오늘의 종목</h2>
                 </div>
@@ -364,7 +364,7 @@ const phasePillLabel = computed(() => {
 
             <section class="panel detail-panel board-panel trade-workspace" :class="{ locked: phaseTradeLocked }">
               <div class="detail-top trade-workspace-header">
-                <div>
+                <div class="detail-heading">
                   <p class="eyebrow">TRADE WORKSPACE</p>
                   <div class="title-with-icon">
                     <StockIcon :code="selectedStock.code" size="md" />
