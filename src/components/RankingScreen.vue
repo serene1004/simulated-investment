@@ -1,32 +1,31 @@
-﻿<script setup lang="ts">
-import type { PropType } from 'vue'
+<script setup lang="ts">
+import type { PropType } from 'vue';
 
-import type { RankingEntry } from '../types/game'
+import type { RankingEntry } from '../types/game';
 
 const props = defineProps({
   ranking: { type: Array as PropType<RankingEntry[]>, required: true },
-})
+});
 
 defineEmits<{
   back: []
-  clear: []
-}>()
+}>();
 
 const getToneClass = (index: number) => {
   if (index === 0) {
-    return 'accent-gold'
+    return 'accent-gold';
   }
 
   if (index === 1) {
-    return 'accent-red'
+    return 'accent-red';
   }
 
   if (index === 2) {
-    return 'accent-blue'
+    return 'accent-blue';
   }
 
-  return ''
-}
+  return '';
+};
 </script>
 
 <template>
@@ -55,8 +54,8 @@ const getToneClass = (index: number) => {
         </div>
 
         <article v-else class="feature-panel accent-blue ranking-empty-panel">
-          <span>아직 기록이 없어요</span>
-          <strong>한 판 끝내고 첫 기록을 남겨보세요.</strong>
+          <span>아직 등록된 랭킹이 없어요</span>
+          <strong>랭킹 모드로 플레이하고 첫 기록을 남겨보세요.</strong>
         </article>
 
         <div class="screen-divider" aria-hidden="true"></div>
@@ -71,7 +70,6 @@ const getToneClass = (index: number) => {
             </svg>
             <span>홈으로</span>
           </button>
-          <button class="secondary-button" :disabled="props.ranking.length === 0" @click="$emit('clear')">기록 비우기</button>
         </div>
       </div>
     </section>

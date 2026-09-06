@@ -1,16 +1,18 @@
-﻿<script setup lang="ts">
-import { computed } from 'vue'
-import type { PropType } from 'vue'
+<script setup lang="ts">
+import { computed } from 'vue';
+import type { PropType } from 'vue';
 
-import MiniChart from './MiniChart.vue'
-import StockIcon from './StockIcon.vue'
+import MiniChart from './MiniChart.vue';
+import PanelHeader from './PanelHeader.vue';
+import StockIcon from './StockIcon.vue';
+import StockListItem from './StockListItem.vue';
 import type {
   BriefingFeaturedStock,
   BriefingSignal,
   Holding,
   PhaseView,
   StockState,
-} from '../types/game'
+} from '../types/game';
 
 const props = defineProps({
   currentPhase: { type: Number, required: true },
@@ -22,7 +24,6 @@ const props = defineProps({
   selectedCode: { type: String, required: true },
   selectedStock: { type: Object as PropType<StockState>, required: true },
   tradeQuantity: { type: Number, required: true },
-  recommendedTradeQuantity: { type: Number, required: true },
   maxAffordableQuantity: { type: Number, required: true },
   selectedHoldingQuantity: { type: Number, required: true },
   holdings: { type: Array as PropType<Holding[]>, required: true },
@@ -40,7 +41,7 @@ const props = defineProps({
   canBuySelected: { type: Boolean, required: true },
   canSellAllSelected: { type: Boolean, required: true },
   canSellSelected: { type: Boolean, required: true },
-})
+});
 
 const emit = defineEmits<{
   showBriefing: []
@@ -54,52 +55,52 @@ const emit = defineEmits<{
   sell: []
   sellAll: []
   advance: []
-}>()
+}>();
 
 const updateTradeQuantity = (event: Event) => {
-  emit('setTradeQuantity', Math.max(1, Math.floor(Number((event.target as HTMLInputElement).value) || 1)))
-}
+  emit('setTradeQuantity', Math.max(1, Math.floor(Number((event.target as HTMLInputElement).value) || 1)));
+};
 
 const selectHoldingFromDesk = (code: string) => {
-  emit('selectStock', code)
+  emit('selectStock', code);
 
   if (props.phaseView !== 'trade') {
-    emit('showTrade')
+    emit('showTrade');
   }
-}
+};
 
-const getStockByCode = (code: string) => props.stocks.find((stock) => stock.code === code)
+const getStockByCode = (code: string) => props.stocks.find((stock) => stock.code === code);
 
-const quantityControlDisabled = computed(() => !props.canBuyMaxSelected && !props.canSellAllSelected)
-const investedValue = computed(() => Math.max(0, props.totalAssets - props.cash))
-const holdingCount = computed(() => props.holdings.length)
-const totalHoldingQuantity = computed(() => props.holdings.reduce((sum, holding) => sum + holding.quantity, 0))
+const quantityControlDisabled = computed(() => !props.canBuyMaxSelected && !props.canSellAllSelected);
+const investedValue = computed(() => Math.max(0, props.totalAssets - props.cash));
+const holdingCount = computed(() => props.holdings.length);
+const totalHoldingQuantity = computed(() => props.holdings.reduce((sum, holding) => sum + holding.quantity, 0));
 
 const deskHoldings = computed(() =>
   props.holdings
     .map((holding) => {
-      const stock = getStockByCode(holding.code)
+      const stock = getStockByCode(holding.code);
 
       return {
         ...holding,
         name: stock?.name ?? holding.code,
         currentValue: (stock?.price ?? 0) * holding.quantity,
-      }
+      };
     })
     .sort((left, right) => right.currentValue - left.currentValue),
-)
+);
 
 const phasePillLabel = computed(() => {
   if (props.phaseTradeLocked) {
-    return '더 거래할 건 없어요'
+    return '거래 완료';
   }
 
   if (props.phaseTradeCount > 0) {
-    return `${props.phaseTradeCount}개 종목 거래했어요`
+    return `${props.phaseTradeCount}개 종목 거래했어요`;
   }
 
-  return '브리핑 보는 중'
-})
+  return '거래 전 브리핑';
+});
 </script>
 
 <template>
@@ -136,12 +137,10 @@ const phasePillLabel = computed(() => {
         </div>
 
         <aside class="holdings-panel">
-          <div class="holdings-panel-header">
-            <div class="holdings-panel-summary">
-              <span>내 보유현황</span>
-              <strong>{{ holdingCount }}종목</strong>
-            </div>
-            <div class="holdings-panel-actions">
+          <PanelHeader eyebrow="PORTFOLIO" title="내 보유현황">
+            <template #meta>
+              <div class="holdings-panel-actions">
+                <span class="stock-count-chip">{{ holdingCount }}종목</span>
               <span class="holdings-phase-chip">PHASE {{ currentPhase }} / {{ totalPhases }}</span>
               <strong class="score-chip">{{ score.toLocaleString() }} pt</strong>
               <button class="surface-button board-exit-button" @click="$emit('quit')">
@@ -153,8 +152,9 @@ const phasePillLabel = computed(() => {
                 </svg>
                 <span>그만하기</span>
               </button>
-            </div>
-          </div>
+              </div>
+            </template>
+          </PanelHeader>
 
           <div class="holdings-metric-grid">
             <article>
@@ -206,14 +206,12 @@ const phasePillLabel = computed(() => {
       <Transition name="phase-panel" mode="out-in">
         <section v-if="phaseView === 'briefing'" key="briefing" class="phase-stage-panel phase-stage-briefing">
           <div class="briefing-grid">
-            <section class="panel briefing-hero">
-              <div class="section-header">
-                <div class="section-heading">
-                  <p class="eyebrow">PRE-MARKET SIGNAL</p>
-                  <h2>{{ currentEventTitle }}</h2>
-                </div>
-                <span class="event-pill">{{ phasePillLabel }}</span>
-              </div>
+            <section class="panel briefing-signal-panel">
+              <PanelHeader eyebrow="PRE-MARKET SIGNAL" :title="currentEventTitle">
+                <template #meta>
+                  <span class="event-pill">{{ phasePillLabel }}</span>
+                </template>
+              </PanelHeader>
 
               <p class="briefing-description">{{ currentEventDescription }}</p>
 
@@ -225,100 +223,37 @@ const phasePillLabel = computed(() => {
                   :class="`tone-${signal.tone}`"
                 >
                   <span>{{ signal.label }}</span>
-                  <strong>{{ signal.value }}</strong>
+                  <div v-if="signal.stocks" class="briefing-signal-stocks">
+                    <div v-for="stock in signal.stocks" :key="stock.code" class="briefing-signal-stock">
+                      <StockIcon :code="stock.code" size="sm" />
+                      <strong>
+                        {{ stock.name }}
+                        <small>{{ stock.changeRate > 0 ? '+' : '' }}{{ stock.changeRate.toFixed(1) }}%</small>
+                      </strong>
+                    </div>
+                  </div>
+                  <strong v-if="!signal.stocks">{{ signal.value }}</strong>
                 </article>
               </div>
             </section>
 
             <section class="panel briefing-watch-panel">
-              <div class="section-header">
-                <div class="section-heading">
-                  <p class="eyebrow">WATCHLIST PICKS</p>
-                  <h3>핵심 종목 후보</h3>
-                </div>
-                <span class="stock-count-chip">{{ briefingFeaturedStocks.length }}개 포인트</span>
-              </div>
+              <PanelHeader eyebrow="WATCHLIST PICKS" title="핵심 종목 후보">
+                <template #meta>
+                  <span class="stock-count-chip">{{ briefingFeaturedStocks.length }}개 포인트</span>
+                </template>
+              </PanelHeader>
 
               <div class="feature-market-list">
-                <button
+                <StockListItem
                   v-for="stock in briefingFeaturedStocks"
                   :key="stock.code"
-                  class="feature-stock-item"
-                  :class="[`tone-${stock.tone}`, { selected: stock.code === selectedCode }]"
-                  @click="$emit('selectStock', stock.code)"
-                >
-                  <div class="feature-stock-head">
-                    <div class="feature-stock-copy">
-                      <div class="stock-name-line">
-                        <StockIcon :code="stock.code" size="sm" />
-                        <strong>{{ stock.name }}</strong>
-                      </div>
-                      <span>{{ stock.theme }} · {{ stock.riskLabel }}</span>
-                    </div>
-                    <em :class="stock.changeRate >= 0 ? 'up' : 'down'">
-                      {{ stock.changeRate > 0 ? '+' : '' }}{{ stock.changeRate.toFixed(1) }}%
-                    </em>
-                  </div>
-                  <div class="feature-stock-foot">
-                    <small>{{ stock.reason }}</small>
-                    <MiniChart
-                      :values="getStockByCode(stock.code)?.history ?? [stock.price, stock.price]"
-                      :positive="stock.changeRate >= 0"
-                    />
-                  </div>
-                </button>
+                  :stock="stock"
+                  :history="getStockByCode(stock.code)?.history ?? []"
+                  variant="watchlist"
+                  show-description
+                />
               </div>
-            </section>
-
-            <section class="panel briefing-focus-panel">
-              <div class="section-header">
-                <div class="section-heading">
-                  <p class="eyebrow">FOCUS STOCK</p>
-                  <div class="title-with-icon compact">
-                    <StockIcon :code="selectedStock.code" size="sm" />
-                    <h3>{{ selectedStock.name }}</h3>
-                  </div>
-                </div>
-                <span class="stock-count-chip">{{ selectedStock.theme }}</span>
-              </div>
-
-              <Transition name="detail-fade" mode="out-in">
-                <div :key="selectedStock.code" class="focus-panel">
-                  <div
-                    class="price-card focus-price-panel"
-                    :class="selectedStock.changeRate > 0 ? 'tone-rise' : selectedStock.changeRate < 0 ? 'tone-fall' : 'tone-neutral'"
-                  >
-                    <div class="focus-price-header">
-                      <div class="focus-price-copy">
-                        <span>현재 가격</span>
-                        <strong>{{ selectedStock.price.toLocaleString() }}원</strong>
-                      </div>
-                      <em :class="selectedStock.changeRate >= 0 ? 'up' : 'down'">
-                        {{ selectedStock.changeRate > 0 ? '+' : '' }}{{ selectedStock.changeRate.toFixed(1) }}%
-                      </em>
-                    </div>
-
-                    <div class="focus-price-chart">
-                      <MiniChart :values="selectedStock.history" :positive="selectedStock.changeRate >= 0" />
-                    </div>
-                  </div>
-
-                  <div class="focus-metric-grid">
-                    <article>
-                      <span>보유 수량</span>
-                      <strong>{{ selectedHoldingQuantity }}주</strong>
-                    </article>
-                    <article>
-                      <span>가능 매수</span>
-                      <strong>{{ maxAffordableQuantity }}주</strong>
-                    </article>
-                    <article>
-                      <span>추천 수량</span>
-                      <strong>{{ recommendedTradeQuantity }}주</strong>
-                    </article>
-                  </div>
-                </div>
-              </Transition>
             </section>
           </div>
         </section>
@@ -326,59 +261,36 @@ const phasePillLabel = computed(() => {
         <section v-else key="trade" class="phase-stage-panel phase-stage-trading">
           <div class="main-grid enhanced-grid">
             <section class="panel market-panel board-panel">
-              <div class="section-header">
-                <div class="section-heading">
-                  <p class="eyebrow">MARKET BOARD</p>
-                  <h2>오늘의 종목</h2>
-                </div>
-                <span class="stock-count-chip">{{ stocks.length }}개 종목</span>
-              </div>
+              <PanelHeader eyebrow="MARKET BOARD" title="오늘의 종목">
+                <template #meta>
+                  <span class="stock-count-chip">{{ stocks.length }}개 종목</span>
+                </template>
+              </PanelHeader>
 
               <div class="market-list market-list-compact">
-                <button
+                <StockListItem
                   v-for="stock in stocks"
                   :key="stock.code"
-                  class="market-list-item"
-                  :class="{ selected: selectedCode === stock.code }"
-                  @click="$emit('selectStock', stock.code)"
-                >
-                  <div class="market-list-copy">
-                    <div class="stock-name-line">
-                      <StockIcon :code="stock.code" size="sm" />
-                      <strong>{{ stock.name }}</strong>
-                    </div>
-                    <span>{{ stock.theme }} · {{ stock.riskLabel }}</span>
-                  </div>
-                  <div class="market-list-side">
-                    <MiniChart :values="stock.history" :positive="stock.changeRate >= 0" />
-                    <div class="market-list-metrics">
-                      <strong>{{ stock.price.toLocaleString() }}원</strong>
-                      <span :class="stock.changeRate >= 0 ? 'up' : 'down'">
-                        {{ stock.changeRate > 0 ? '+' : '' }}{{ stock.changeRate.toFixed(1) }}%
-                      </span>
-                    </div>
-                  </div>
-                </button>
+                  :stock="stock"
+                  interactive
+                  :active="selectedCode === stock.code"
+                  @select="$emit('selectStock', $event)"
+                />
               </div>
             </section>
 
             <section class="panel detail-panel board-panel trade-workspace" :class="{ locked: phaseTradeLocked }">
-              <div class="detail-top trade-workspace-header">
-                <div class="detail-heading">
-                  <p class="eyebrow">TRADE WORKSPACE</p>
-                  <div class="title-with-icon">
-                    <StockIcon :code="selectedStock.code" size="md" />
-                    <h2>{{ selectedStock.name }}</h2>
+              <PanelHeader eyebrow="TRADE WORKSPACE" :title="selectedStock.name">
+                <template #meta>
+                  <div class="section-header-meta">
+                    <span class="risk-badge">{{ selectedStock.riskLabel }}</span>
+                    <div class="trade-slot-mini">
+                      <span :class="{ used: phaseBuyCount > 0 }">BUY {{ phaseBuyCount }}</span>
+                      <span :class="{ used: phaseSellCount > 0 }">SELL {{ phaseSellCount }}</span>
+                    </div>
                   </div>
-                </div>
-                <div class="detail-top-actions trade-workspace-header-meta">
-                  <span class="risk-badge">{{ selectedStock.riskLabel }}</span>
-                  <div class="trade-slot-mini">
-                    <span :class="{ used: phaseBuyCount > 0 }">BUY {{ phaseBuyCount }}</span>
-                    <span :class="{ used: phaseSellCount > 0 }">SELL {{ phaseSellCount }}</span>
-                  </div>
-                </div>
-              </div>
+                </template>
+              </PanelHeader>
 
               <div class="trade-workspace-layout">
                 <section class="trade-summary-panel">
@@ -403,11 +315,7 @@ const phasePillLabel = computed(() => {
                         </div>
                       </div>
 
-                      <div class="info-grid info-grid-wide trade-stats-grid">
-                        <article>
-                          <span>테마</span>
-                          <strong>{{ selectedStock.theme }}</strong>
-                        </article>
+                      <div class="trade-stats-grid">
                         <article>
                           <span>보유 수량</span>
                           <strong>{{ holdingsMap[selectedStock.code]?.quantity ?? 0 }}주</strong>
@@ -427,56 +335,21 @@ const phasePillLabel = computed(() => {
 
                 <section class="trade-control-panel trade-control-panel-side">
                   <div class="trade-control-group">
-                    <div class="quantity-stepper-control">
-                      <button
-                        class="stepper-button"
-                        :disabled="quantityControlDisabled || tradeQuantity <= 1"
-                        @click="$emit('nudgeTradeQuantity', -1)"
-                      >
-                        -
-                      </button>
-                      <input
-                        id="quantity"
-                        :value="tradeQuantity"
-                        type="number"
-                        min="1"
-                        :disabled="quantityControlDisabled"
-                        @input="updateTradeQuantity"
-                      />
-                      <button class="stepper-button" :disabled="quantityControlDisabled" @click="$emit('nudgeTradeQuantity', 1)">+</button>
+                    <div class="trade-control-section">
+                      <span class="trade-control-label">거래 수량</span>
+                      <div class="quantity-stepper-control">
+                        <button class="stepper-button" :disabled="quantityControlDisabled || tradeQuantity <= 1" @click="$emit('nudgeTradeQuantity', -1)">-</button>
+                        <input id="quantity" :value="tradeQuantity" type="number" min="1" :disabled="quantityControlDisabled" @input="updateTradeQuantity" />
+                        <button class="stepper-button" :disabled="quantityControlDisabled" @click="$emit('nudgeTradeQuantity', 1)">+</button>
+                      </div>
                     </div>
-
-                    <div class="quantity-preset-list">
-                      <button
-                        class="pill-button"
-                        :disabled="quantityControlDisabled"
-                        @click="$emit('setTradeQuantity', recommendedTradeQuantity)"
-                      >
-                        추천 {{ recommendedTradeQuantity }}주
-                      </button>
-                      <button
-                        class="pill-button"
-                        :disabled="quantityControlDisabled || selectedHoldingQuantity <= 0"
-                        @click="$emit('setTradeQuantity', selectedHoldingQuantity)"
-                      >
-                        {{ selectedHoldingQuantity > 0 ? '보유 ' + selectedHoldingQuantity + '주' : '보유 없음' }}
-                      </button>
-                      <button
-                        class="pill-button"
-                        :disabled="quantityControlDisabled || maxAffordableQuantity <= 0"
-                        @click="$emit('setTradeQuantity', maxAffordableQuantity)"
-                      >
-                        {{ maxAffordableQuantity > 0 ? '가능 ' + maxAffordableQuantity + '주' : '매수 여력 없음' }}
-                      </button>
+                    <div class="trade-control-section">
+                      <span class="trade-control-label">주문 실행</span>
+                      <div class="trade-action-row trade-action-grid">
+                        <button class="action-button buy-button" :disabled="!canBuySelected" @click="$emit('buy')">매수</button>
+                        <button class="action-button sell-button" :disabled="!canSellSelected" @click="$emit('sell')">매도</button>
+                      </div>
                     </div>
-
-                    <div class="trade-action-row trade-action-grid">
-                      <button class="utility-button buy-utility-button" :disabled="!canBuyMaxSelected" @click="$emit('buyMax')">풀 매수</button>
-                      <button class="action-button buy-button" :disabled="!canBuySelected" @click="$emit('buy')">매수</button>
-                      <button class="action-button sell-button" :disabled="!canSellSelected" @click="$emit('sell')">매도</button>
-                      <button class="utility-button sell-utility-button" :disabled="!canSellAllSelected" @click="$emit('sellAll')">풀 매도</button>
-                    </div>
-
                     <button class="primary-button full-width phase-advance-cta" @click="$emit('advance')">
                       {{ phaseTradeCount > 0 ? '가격 움직임 보기' : '이번 페이즈 넘기기' }}
                     </button>

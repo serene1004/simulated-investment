@@ -1,12 +1,12 @@
 ﻿<script setup lang="ts">
-import { computed } from 'vue'
+import { computed } from 'vue';
 
 const props = withDefaults(defineProps<{
   code: string
   size?: 'sm' | 'md' | 'lg'
 }>(), {
   size: 'md',
-})
+});
 
 type IconVariant =
   | 'bars'
@@ -22,7 +22,7 @@ type IconVariant =
   | 'box'
   | 'pulse'
   | 'ticket'
-  | 'orbit'
+  | 'orbit';
 
 const iconMap: Record<string, { variant: IconVariant; bg: string; accent: string; accentSoft: string }> = {
   BLUE: { variant: 'bars', bg: 'linear-gradient(135deg, #1b3e72 0%, #2e6fcb 100%)', accent: '#f5fbff', accentSoft: '#c6defd' },
@@ -43,15 +43,15 @@ const iconMap: Record<string, { variant: IconVariant; bg: string; accent: string
   JET: { variant: 'route', bg: 'linear-gradient(135deg, #20507f 0%, #67b5ef 100%)', accent: '#eff8ff', accentSoft: '#d2ebff' },
   HYP: { variant: 'box', bg: 'linear-gradient(135deg, #7f3f17 0%, #e18a41 100%)', accent: '#fff8f1', accentSoft: '#ffe0c0' },
   MEC: { variant: 'wheel', bg: 'linear-gradient(135deg, #44546b 0%, #7c9bc6 100%)', accent: '#f4f8ff', accentSoft: '#d6e0f2' },
-}
+};
 
-const iconConfig = computed(() => iconMap[props.code] ?? iconMap.BLUE)
+const iconConfig = computed(() => iconMap[props.code] ?? iconMap.BLUE);
 
 const iconStyle = computed(() => ({
   '--icon-bg': iconConfig.value.bg,
   '--icon-accent': iconConfig.value.accent,
   '--icon-accent-soft': iconConfig.value.accentSoft,
-}))
+}));
 </script>
 
 <template>

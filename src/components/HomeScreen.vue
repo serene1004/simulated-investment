@@ -1,8 +1,8 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 defineEmits<{
-  start: []
+  start: [mode: 'practice' | 'ranking']
   ranking: []
-}>()
+}>();
 </script>
 
 <template>
@@ -36,7 +36,8 @@ defineEmits<{
 
         <div class="screen-actions">
           <button class="secondary-button" @click="$emit('ranking')">랭킹 보기</button>
-          <button class="primary-button" @click="$emit('start')">게임 시작</button>
+          <button class="secondary-button" @click="$emit('start', 'practice')">연습 모드</button>
+          <button class="primary-button" @click="$emit('start', 'ranking')">랭킹 모드</button>
         </div>
       </div>
     </section>

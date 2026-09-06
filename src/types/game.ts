@@ -1,7 +1,8 @@
-export type Screen = 'home' | 'game' | 'summary' | 'result' | 'ranking'
-export type PhaseView = 'briefing' | 'trade'
-export type TradeSide = 'buy' | 'sell'
-export type BriefingTone = 'rise' | 'fall' | 'neutral'
+export type Screen = 'home' | 'game' | 'summary' | 'result' | 'ranking';
+export type PhaseView = 'briefing' | 'trade';
+export type GameMode = 'practice' | 'ranking';
+export type TradeSide = 'buy' | 'sell';
+export type BriefingTone = 'rise' | 'fall' | 'neutral';
 
 export type StockTemplate = {
   code: string
@@ -12,41 +13,42 @@ export type StockTemplate = {
   volatility: number
   drift: number
   eventTags: string[]
-}
+};
 
 export type StockState = StockTemplate & {
   price: number
   previousPrice: number
   changeRate: number
   history: number[]
-}
+};
 
 export type Holding = {
   code: string
   quantity: number
   averagePrice: number
-}
+};
 
 export type RankingEntry = {
   nickname: string
   score: number
   assets: number
   playedAt: string
-}
+};
 
 export type PhaseEvent = {
   title: string
   description: string
   affectedTags: string[]
   effectRange: [number, number]
-}
+};
 
 export type BriefingSignal = {
   id: string
   label: string
-  value: string
+  value?: string
+  stocks?: Array<{ code: string; name: string; changeRate: number }>
   tone: BriefingTone
-}
+};
 
 export type BriefingFeaturedStock = {
   code: string
@@ -57,14 +59,14 @@ export type BriefingFeaturedStock = {
   riskLabel: string
   reason: string
   tone: BriefingTone
-}
+};
 
 export type PhaseTradeAction = {
   code: string
   side: TradeSide
   quantity: number
   label: string
-}
+};
 
 export type PhaseSummary = {
   phaseNumber: number
@@ -75,7 +77,7 @@ export type PhaseSummary = {
   strongestStockCode: string
   weakestStockCode: string
   decisionLabel: string
-}
+};
 
 export type PersistedGameState = {
   nickname: string
@@ -91,4 +93,4 @@ export type PersistedGameState = {
   currentPhaseEvent: PhaseEvent
   phaseView: PhaseView
   phaseTradeActions: PhaseTradeAction[]
-}
+};
