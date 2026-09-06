@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase';
 import {
   defaultEventDescription,
   defaultEventTitle,
-  defaultRanking,
   phaseEvents,
   startingCashDefault,
   stockCatalog,
@@ -35,7 +34,6 @@ type LegacyPersistedGameState = Omit<PersistedGameState, 'currentPhaseEvent'> & 
 };
 
 const gameStorageKey = 'simulated-investment-game-state';
-const rankingStorageKey = 'simulated-investment-ranking';
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const toRoundedPrice = (value: number) => {
   const roundingUnit = value >= 1000000 ? 1000 : value >= 100000 ? 100 : 10;
@@ -359,15 +357,6 @@ const createSummaryFromStocks = (
   };
 };
 
-const formatPlayedAt = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-
-  return `${year}-${month}-${day}`;
-};
-
 export const useInvestmentGame = () => {
   const fallbackState = createInitialPersistedState();
   const persistedState = normalizePersistedState(readJson<LegacyPersistedGameState>(gameStorageKey, fallbackState));
@@ -385,17 +374,27 @@ export const useInvestmentGame = () => {
   const currentPhaseEvent = ref<PhaseEvent>(clonePhaseEvent(persistedState.currentPhaseEvent));
   const phaseView = ref<PhaseView>(persistedState.phaseView);
   const phaseTradeActions = ref<PhaseTradeAction[]>(persistedState.phaseTradeActions);
-  const ranking = ref<RankingEntry[]>(readJson<RankingEntry[]>(rankingStorageKey, defaultRanking));
+  const ranking = ref<RankingEntry[]>([]);
 
   const loadRankings = async () => {
     if (!supabase) {
+      ranking.value = [];
       return;
     }
 
-    const { data } = await supabase.from('rankings').select('nickname, score, created_at').order('score', { ascending: false }).order('created_at', { ascending: true }).limit(10);
-    if (data) {
-      ranking.value = data.map((entry) => ({ nickname: entry.nickname, score: entry.score, assets: entry.score * 100, playedAt: entry.created_at.slice(0, 10) }));
-    }
+    const { data } = await supabase
+      .from('rankings')
+      .select('nickname, score, created_at')
+      .order('score', { ascending: false })
+      .order('created_at', { ascending: true })
+      .limit(10);
+
+    ranking.value = (data ?? []).map((entry) => ({
+      nickname: entry.nickname,
+      score: entry.score,
+      assets: entry.score * 100,
+      playedAt: entry.created_at.slice(0, 10),
+    }));
   };
 
   void loadRankings();
@@ -476,14 +475,6 @@ export const useInvestmentGame = () => {
     window.localStorage.setItem(gameStorageKey, JSON.stringify(payload));
   };
 
-  const saveRanking = () => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    window.localStorage.setItem(rankingStorageKey, JSON.stringify(ranking.value));
-  };
-
   watch(
     [
       currentScreen,
@@ -505,12 +496,6 @@ export const useInvestmentGame = () => {
         saveGameState();
       }
     },
-    { deep: true },
-  );
-
-  watch(
-    ranking,
-    () => saveRanking(),
     { deep: true },
   );
 
@@ -584,6 +569,9 @@ export const useInvestmentGame = () => {
 
   const openScreen = (screen: Screen) => {
     currentScreen.value = screen;
+    if (screen === 'ranking') {
+      void loadRankings();
+    }
   };
 
   const openBriefingView = () => {
@@ -793,31 +781,16 @@ export const useInvestmentGame = () => {
 
   const registerRanking = async () => {
     const trimmedNickname = nickname.value.trim();
-    if (!trimmedNickname || gameMode.value !== 'ranking') {
+    if (!trimmedNickname || gameMode.value !== 'ranking' || !supabase) {
       return;
     }
 
-    if (supabase) {
-      const { error } = await supabase.from('rankings').insert({ nickname: trimmedNickname, score: score.value });
-      if (error) {
-        flashMessage.value = '랭킹 저장에 실패했어요.';
-        return;
-      }
-      await loadRankings();
-    } else {
-      ranking.value = [
-        {
-          nickname: trimmedNickname,
-          score: score.value,
-          assets: totalAssets.value,
-          playedAt: formatPlayedAt(),
-        },
-        ...ranking.value,
-      ]
-        .sort((left, right) => right.score - left.score)
-        .slice(0, 10);
+    const { error } = await supabase.from('rankings').insert({ nickname: trimmedNickname, score: score.value });
+    if (error) {
+      return;
     }
 
+    await loadRankings();
     resetGame();
     currentScreen.value = 'ranking';
     if (typeof window !== 'undefined') {

@@ -1,4 +1,4 @@
-﻿import type { PhaseEvent, StockTemplate } from '../types/game';
+import type { PhaseEvent, StockTemplate } from '../types/game';
 
 export const totalPhasesDefault = 5;
 export const startingCashDefault = 10000000;
@@ -25,8 +25,6 @@ export const stockCatalog: StockTemplate[] = [
   { code: 'HYP', name: '하이퍼커머스', theme: '커머스', riskLabel: '성장형', basePrice: 238000, volatility: 10, drift: 1.1, eventTags: ['commerce', 'consumer', 'internet'] },
   { code: 'MEC', name: '미래오토텍', theme: '자동차 부품', riskLabel: '성장형', basePrice: 264000, volatility: 9, drift: 1.15, eventTags: ['auto', 'mobility', 'trade'] },
 ];
-
-export const defaultRanking = [];
 
 export const phaseEvents: PhaseEvent[] = [
   { title: 'AI 투자 열풍', description: 'AI 관련 기대감이 커지며 기술주와 반도체가 강세를 보였습니다.', affectedTags: ['ai', 'chip'], effectRange: [4, 10] },

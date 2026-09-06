@@ -32,7 +32,7 @@ pnpm dev
 
 ## 환경 변수 및 온라인 랭킹 설정
 
-Supabase를 연결하지 않아도 게임과 로컬 랭킹은 사용할 수 있습니다. 온라인 랭킹을 사용하려면 `.env.example`을 복사해 `.env`를 만들고 프로젝트 값을 입력합니다.
+랭킹은 Supabase 데이터베이스만 사용합니다. `.env.example`을 복사해 `.env`를 만들고 프로젝트 값을 입력합니다.
 
 ```bash
 VITE_SUPABASE_URL=https://your-project.supabase.co
