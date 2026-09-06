@@ -21,7 +21,7 @@
 
 ## 시작하기
 
-Node.js 20 이상과 pnpm이 필요합니다.
+Node.js 24 이상과 pnpm이 필요합니다.
 
 ```bash
 pnpm install
