@@ -7,6 +7,7 @@ import ResultScreen from './components/ResultScreen.vue';
 import MarketTicker from './components/MarketTicker.vue';
 import SummaryScreen from './components/SummaryScreen.vue';
 import { useInvestmentGame } from './composables/useInvestmentGame';
+import { isRankingServerAvailable } from './lib/supabase';
 import type { GameMode, Screen } from './types/game';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -65,6 +66,30 @@ const {
 } = useInvestmentGame();
 const router = useRouter();
 const route = useRoute();
+const rankingServerStatus = ref<'checking' | 'available' | 'unavailable'>('checking');
+
+const checkRankingServer = async () => {
+  rankingServerStatus.value = 'checking';
+  rankingServerStatus.value = await isRankingServerAvailable() ? 'available' : 'unavailable';
+};
+
+const startHomeGame = (mode: GameMode) => {
+  if (mode === 'ranking' && rankingServerStatus.value !== 'available') {
+    return;
+  }
+
+  startGame(mode);
+};
+
+const startRankingFromRoute = async () => {
+  if (!await isRankingServerAvailable()) {
+    rankingServerStatus.value = 'unavailable';
+    await router.replace({ name: 'home' });
+    return;
+  }
+
+  startGame('ranking');
+};
 
 const routeNameForState = (screen: Screen, mode: GameMode) => {
   if (screen === 'game') {
@@ -80,7 +105,7 @@ const syncStateFromRoute = () => {
     }
   } else if (route.name === 'ranking-game') {
     if (currentScreen.value !== 'game' || gameMode.value !== 'ranking') {
-      startGame('ranking');
+      void startRankingFromRoute();
     }
   } else if (route.name === 'ranking') {
     openScreen('ranking');
@@ -100,6 +125,11 @@ watch([currentScreen, gameMode], ([screen, mode]) => {
     void router.push({ name: targetName });
   }
 });
+watch(currentScreen, (screen) => {
+  if (screen === 'home') {
+    void checkRankingServer();
+  }
+}, { immediate: true });
 
 type TradeConfirmAction = 'buy' | 'buyMax' | 'sell' | 'sellAll';
 const showQuitConfirm = ref(false);
@@ -239,7 +269,8 @@ const confirmTradeAction = () => {
         <HomeScreen
           v-if="currentScreen === 'home'"
           key="home"
-          @start="startGame($event as GameMode)"
+          :ranking-server-status="rankingServerStatus"
+          @start="startHomeGame($event as GameMode)"
           @ranking="openScreen('ranking')"
         />
 

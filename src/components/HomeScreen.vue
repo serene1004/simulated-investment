@@ -1,4 +1,8 @@
 <script setup lang="ts">
+defineProps<{
+  rankingServerStatus: 'checking' | 'available' | 'unavailable'
+}>();
+
 defineEmits<{
   start: [mode: 'practice' | 'ranking']
   ranking: []
@@ -35,10 +39,19 @@ defineEmits<{
         <div class="screen-divider" aria-hidden="true"></div>
 
         <div class="screen-actions">
-          <button class="secondary-button" @click="$emit('ranking')">랭킹 보기</button>
+          <template v-if="rankingServerStatus === 'available'">
+            <button class="secondary-button" @click="$emit('ranking')">랭킹 보기</button>
+            <button class="primary-button" @click="$emit('start', 'ranking')">랭킹 모드</button>
+          </template>
           <button class="secondary-button" @click="$emit('start', 'practice')">연습 모드</button>
-          <button class="primary-button" @click="$emit('start', 'ranking')">랭킹 모드</button>
         </div>
+
+        <p v-if="rankingServerStatus === 'checking'" class="home-server-message" role="status">
+          랭킹 서버 연결을 확인하고 있어요.
+        </p>
+        <p v-else-if="rankingServerStatus === 'unavailable'" class="home-server-message" role="alert">
+          현재 서버와 연결이 되지 않았어요. 연습 모드만 이용할 수 있어요.
+        </p>
       </div>
     </section>
   </div>
