@@ -225,13 +225,6 @@ body {
   color: var(--fall-blue);
 }
 
-@media (max-width: 760px) {
-  .pixel-market .app-frame {
-    width: min(100% - 20px, 620px);
-    padding-top: 10px;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .pixel-market *,
   .pixel-market *::before,
@@ -288,23 +281,12 @@ body {
 .pixel-market button:active:not(:disabled) { transform:translate(2px,2px)!important; box-shadow:none!important; filter:brightness(.94); }
 .pixel-market button:focus-visible { outline:2px solid #d5a82f; outline-offset:2px; }
 .pixel-market button:disabled { opacity:.5; transform:none!important; box-shadow:none!important; filter:none; }
-@media(max-width:560px) {
-  .pixel-market .market-chart-heading { align-items:flex-start; }
-  .pixel-market .market-chart-heading .return-market-link { padding:.5rem; font-size:.65rem; }
-  .pixel-market .order-stock-picker { width:100%; }
-  .pixel-market .order-instrument-band { align-items:flex-start; }
-}
-
 .pixel-market.is-game-screen > .app-frame { width:min(1080px,calc(100% - 32px)); padding:16px 0; }
 .pixel-market:not(.is-game-screen) .app-backdrop { background:linear-gradient(90deg,rgba(14,22,37,.78),rgba(14,22,37,.52) 48%,rgba(14,22,37,.12)),var(--title-room-background) center/cover; }
 .pixel-market.is-game-screen .market-terminal-header { gap:.75rem; padding:.85rem 1rem; }
 .pixel-market .market-session-status { margin-left:auto; }
 .pixel-market .market-information-view,.pixel-market .market-order-view,.pixel-market .market-chart-view,.pixel-market .market-portfolio-view { gap:.75rem; padding:clamp(.65rem,1.5vw,1rem); }
 .pixel-market .market-terminal .trade-feedback { margin:.55rem .9rem 0; }
-@media(max-width:560px) {
-  .pixel-market.is-game-screen > .app-frame { width:calc(100% - 16px); padding:8px 0; }
-  .pixel-market .market-session-status { order:3; width:100%; margin:0; justify-content:space-between; }
-}
 .pixel-market .market-list-compact { max-height: none; min-height: 0; overflow-y: auto; }
 .pixel-market .market-list-compact,
 .pixel-market.is-game-screen > .app-frame,
@@ -337,6 +319,3 @@ body {
 
 /* Square geometry keeps controls and panels consistent with the pixel terminal. */
 .pixel-market * { border-radius: 0 !important; }
-@media (max-width: 700px) {
-  .pixel-market .market-session-status { width: 100%; }
-}

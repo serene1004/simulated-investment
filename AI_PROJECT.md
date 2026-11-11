@@ -47,7 +47,7 @@
 - 거래 화면은 원룸 데스크 배경과 시간대별 일본 교외 주택가 이미지를 사용합니다.
 - `public/assets/market-index-mark-pixel.png`, `public/assets/company-emblems-pixel.png`, `public/assets/market-room-*-pixel.png`을 사용합니다.
 - 픽셀은 시각 스타일이고 브랜드명은 LEXIP입니다.
-- CSS는 `src/styles/app-base.css`의 앱 공통 기반, `pixel-theme.css`의 픽셀 테마, `market-terminal.css`의 증권 단말 화면 스타일로 나눕니다.
+- CSS는 `src/styles/app-base.css`의 공통 기반, `pixel-theme.css`의 픽셀 테마, `market-terminal.css`의 증권 단말 스타일, `responsive.css`의 화면 크기별 배치 규칙으로 나눕니다.
 
 ## 확인 명령
 
