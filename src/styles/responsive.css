@@ -58,6 +58,8 @@
   .pixel-market .market-chart-view,
   .pixel-market .market-portfolio-view { gap: .6rem; padding: .55rem; }
   .pixel-market.is-game-screen .market-information-view { display: flex; flex-direction: column; overflow-y: auto; }
+  .pixel-market.is-game-screen .market-view-toolbar,
+  .pixel-market.is-game-screen .market-breadth-strip { flex: 0 0 auto; }
   .pixel-market.is-game-screen .market-table-section { flex: 0 0 auto; min-height: auto; overflow: visible; padding: .55rem; }
   .pixel-market.is-game-screen .market-table-section .market-list-compact { flex: 0 0 auto; overflow: visible; }
   .pixel-market .market-breadth-strip { flex-wrap: wrap; gap: .45rem .6rem; padding: .6rem; }
