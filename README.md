@@ -1,23 +1,49 @@
-# Simulated Investment
+# LEXIP 증권
 
-가상의 시장 이슈와 종목 데이터를 바탕으로 투자 판단을 연습하는 웹 기반 주식 투자 시뮬레이션 게임입니다. 초기 자금으로 종목을 매수·매도하고, 매 페이즈마다 달라지는 시장 이벤트에 대응해 최종 자산과 수익률을 높이는 것이 목표입니다.
+퇴직금 1,000만 원으로 가상의 주식 시장에 투자하는 픽셀 아트 주식 시뮬레이션 게임입니다. 시장을 관찰하고 종목을 비교해 주문을 내며, 거래일마다 자산을 키우거나 파산을 맞습니다.
 
-## 주요 기능
+## 게임 흐름
 
-- 연습 모드와 랭킹 모드 제공
-- 5개 페이즈의 시장 브리핑, 이벤트 기반 주가 변동, 종목별 미니 차트
-- 매수·매도·전량 거래 및 보유 자산 추적
-- 게임 진행 상태와 로컬 랭킹의 브라우저 저장
-- Supabase 연동 시 온라인 랭킹 등록·조회
-- Vue Router 기반 화면 전환과 GitHub Pages 배포
+1. 랜딩에서 거래를 시작합니다.
+2. **종목 시세**에서 종합지수와 24개 기업의 실시간 모의 시세를 확인합니다.
+3. **기업 정보**에서 현재가, 시가총액, 평균 거래량, 등락률을 카드로 비교합니다.
+4. 종목 상세에서 차트와 고정된 기업 소식을 확인하고 주문 화면으로 이동합니다.
+5. **내 주식**에서 현금, 평가 자산, 보유 종목과 미체결 지정가 주문을 관리합니다.
+6. 20:00 장 마감 요약을 확인하고 다음 거래일을 시작합니다. 총 자산이 10만 원 이하가 되거나 30거래일을 마치면 런이 종료됩니다.
 
-## 기술 스택
+## 거래 규칙
 
-- **Frontend**: Vue 3, TypeScript, Vue Router
-- **Build**: Vite, pnpm
-- **Backend**: Supabase (PostgreSQL, Row Level Security)
-- **Code quality**: ESLint, vue-tsc
-- **Deployment**: GitHub Actions, GitHub Pages
+- 정규장 09:00–15:30, 정비 시간 15:30–16:00, 애프터마켓 16:00–20:00입니다. 정비 시간에는 시세와 주문이 멈추며, 나머지 두 시간대에는 즉시 매수·매도 및 지정가 예약 주문을 지원합니다.
+- 기본 1배속에서 1초마다 게임 시간이 1분 흐릅니다. 1·2·4·8배속을 선택할 수 있고, 5게임 분마다 시장 가격이 갱신됩니다.
+- 종합지수는 시가총액 가중 누적값으로 계산합니다.
+- 각 종목은 전일 종가 대비 ±30%에 도달하면 당일 거래가 정지되고, 다음 거래일에 거래가 재개됩니다.
+- 종목별 추세 편향은 시장 평균을 기준으로 계산해 모든 종목이 함께 상승하도록 고정하지 않습니다.
+- 종목 상세 차트는 당일 흐름과 최근 최대 30거래일의 종가를 일별 또는 5거래일 단위 주별로 표시합니다.
+- 애프터마켓은 정규장보다 낮은 변동성을 사용하고, 미체결 주문은 20:00에 취소됩니다.
+- 가격은 실제 외부 시세가 아닌 종목별 변동성, 시장 이벤트, 무작위 흐름으로 생성됩니다.
+- 종목의 투자 관심도/인기도는 평균 거래량을 기준으로 표시하며, 가격에 영향을 주지 않습니다.
+
+## 화면 경로
+
+Vue Router의 hash URL을 사용합니다. 종목 시세, 기업 정보, 종목 상세, 주문, 내 주식 화면을 각각 별도 경로로 관리해 브라우저 뒤로 가기와 앞으로 가기가 화면 흐름을 따라갑니다.
+
+- `/` — 시작 화면
+- `/game/practice` — 종목 시세
+- `/game/practice/companies` — 기업 정보 카드 목록
+- `/game/practice/portfolio` — 내 주식
+- `/game/practice/stocks/:code` — 종목 상세
+- `/game/practice/stocks/:code/order` — 주문
+- `/summary` — 장 마감 요약
+- `/result` — 파산 또는 30일 완료 결과
+
+## 저장과 기술
+
+게임 진행과 관심 종목은 브라우저 `localStorage`에 저장됩니다.
+
+- Vue 3, TypeScript, Vue Router
+- Vite, pnpm
+- ESLint, vue-tsc
+- GitHub Actions와 GitHub Pages
 
 ## 시작하기
 
@@ -28,36 +54,15 @@ pnpm install
 pnpm dev
 ```
 
-실행 주소는 Vite가 출력하는 로컬 주소(기본값: `http://localhost:5173`)입니다.
-
-## 환경 변수 및 온라인 랭킹 설정
-
-랭킹은 Supabase 데이터베이스만 사용합니다. `.env.example`을 복사해 `.env`를 만들고 프로젝트 값을 입력합니다.
-
-```bash
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_key
-```
-
-그 다음 [rankings 마이그레이션](supabase/migrations/20260829000000_create_rankings.sql)을 Supabase SQL Editor에서 실행합니다. 이 마이그레이션은 랭킹 테이블, 읽기·등록 권한, Row Level Security 정책을 설정합니다.
-
-GitHub Pages 배포에서는 Repository variables에 아래 값을 등록합니다.
-
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_PUBLISHABLE_KEY`
+Vite가 출력하는 로컬 주소(기본 `http://localhost:5173`)에서 실행합니다.
 
 ## 확인 명령
 
 ```bash
+pnpm verify
 pnpm lint
 pnpm build
 pnpm preview
 ```
 
-## 배포
-
-`main` 브랜치에 푸시하면 GitHub Actions가 pnpm으로 의존성을 설치하고, lint·build를 수행한 뒤 GitHub Pages에 배포합니다.
-
-## 변경 이력
-
-주요 변경 사항은 [CHANGELOG.md](CHANGELOG.md)에서 관리합니다.
+PR 또는 `main` 브랜치 푸시 시 GitHub Actions가 `pnpm verify`를 실행합니다. `main` 푸시 시 검증을 마친 배포 워크플로가 GitHub Pages에 배포합니다. 빌드에 필요한 비밀키나 서비스 환경 변수는 없습니다.

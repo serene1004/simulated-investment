@@ -1,370 +1,21 @@
 import { computed, ref, watch } from 'vue';
-import { supabase } from '../lib/supabase';
-
+import { maxGameDays } from '../data/gameData';
+import type { GameEnding, Holding, PendingOrder, PersistedGameState, PhaseEvent, PhaseSummary, PhaseTradeAction, Screen, StockState, TradeSide } from '../types/game';
 import {
-  defaultEventDescription,
-  defaultEventTitle,
-  phaseEvents,
-  startingCashDefault,
-  stockCatalog,
-  totalPhasesDefault,
-} from '../data/gameData';
-import type {
-  BriefingFeaturedStock,
-  GameMode,
-  BriefingSignal,
-  BriefingTone,
-  Holding,
-  PersistedGameState,
-  PhaseEvent,
-  PhaseSummary,
-  PhaseTradeAction,
-  PhaseView,
-  RankingEntry,
-  Screen,
-  StockState,
-  StockTemplate,
-  TradeSide,
-} from '../types/game';
+  afterMarketOpenMinute, bankruptcyFloor, calculateStockMoveRate, clamp, clonePhaseEvent, dailyPriceLimitRate,
+  getMarketCapitalization, getPriceRoundingUnit, marketCloseMinute, marketHistorySamplesPerDay, marketOpenMinute,
+  marketTicksPerDay, pickRandomPhaseEvent, regularMarketCloseMinute, suggestTradeQuantity, toRoundedPrice,
+} from '../game/marketModel';
+import { createInitialPersistedState, createSummaryFromStocks, gameStorageKey, normalizePersistedState, readJson } from '../game/gamePersistence';
 
-type LegacyPersistedGameState = Omit<PersistedGameState, 'currentPhaseEvent'> & {
-  currentPhaseEvent?: PhaseEvent
-  currentEventTitle?: string
-  currentEventDescription?: string
-};
-
-const gameStorageKey = 'simulated-investment-game-state';
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-const toRoundedPrice = (value: number) => {
-  const roundingUnit = value >= 1000000 ? 1000 : value >= 100000 ? 100 : 10;
-  return Math.max(1000, Math.round(value / roundingUnit) * roundingUnit);
-};
-const randomBetween = (min: number, max: number) => Math.random() * (max - min) + min;
-
-const createFallbackPhaseEvent = (): PhaseEvent => ({
-  title: defaultEventTitle,
-  description: defaultEventDescription,
-  affectedTags: [],
-  effectRange: [-2, 2],
-});
-
-const clonePhaseEvent = (event: PhaseEvent): PhaseEvent => ({
-  ...event,
-  affectedTags: [...event.affectedTags],
-  effectRange: [event.effectRange[0], event.effectRange[1]],
-});
-
-const pickRandomPhaseEvent = () =>
-  clonePhaseEvent(phaseEvents[Math.floor(Math.random() * phaseEvents.length)] ?? createFallbackPhaseEvent());
-
-const getEventDirection = (event: PhaseEvent): BriefingTone => {
-  const averageImpact = (event.effectRange[0] + event.effectRange[1]) / 2;
-
-  if (averageImpact > 1) {
-    return 'rise';
-  }
-
-  if (averageImpact < -1) {
-    return 'fall';
-  }
-
-  return 'neutral';
-};
-
-const getMatchedTagCount = (stock: Pick<StockTemplate, 'eventTags'>, event: PhaseEvent) =>
-  event.affectedTags.reduce((count, tag) => count + (stock.eventTags.includes(tag) ? 1 : 0), 0);
-
-const getAlignmentScore = (stock: StockState, event: PhaseEvent) => {
-  const direction = getEventDirection(event);
-  const matchedTagCount = getMatchedTagCount(stock, event);
-  const changeBias = direction === 'fall' ? Math.abs(Math.min(stock.changeRate, 0)) : Math.max(stock.changeRate, 0);
-
-  return matchedTagCount * 4 + changeBias;
-};
-
-const createHistoryFromPrices = (referencePrice: number, nextPrice: number) => {
-  const delta = nextPrice - referencePrice;
-  const midpointA = toRoundedPrice(referencePrice - delta * 0.42);
-  const midpointB = toRoundedPrice(referencePrice - delta * 0.18);
-  const midpointC = toRoundedPrice(referencePrice + delta * 0.52);
-
-  return [midpointA, midpointB, referencePrice, midpointC, nextPrice];
-};
-
-const applyEventImpact = (stock: Pick<StockTemplate, 'eventTags'>, event: PhaseEvent, intensity = 1) => {
-  if (!event.affectedTags.length) {
-    return randomBetween(event.effectRange[0], event.effectRange[1]) * intensity;
-  }
-
-  if (event.affectedTags.some((tag) => stock.eventTags.includes(tag))) {
-    return randomBetween(event.effectRange[0], event.effectRange[1]) * intensity;
-  }
-
-  return randomBetween(-1.8, 1.8) * intensity;
-};
-
-const calculateStockMoveRate = (
-  stock: Pick<StockTemplate, 'volatility' | 'drift' | 'eventTags'>,
-  event: PhaseEvent,
-  intensity = 1,
-) => {
-  const baseMove = randomBetween(-stock.volatility * 0.58 * intensity, stock.volatility * 0.58 * intensity);
-  const trend = randomBetween((stock.drift - 1.05) * intensity, (stock.drift + 1.05) * intensity);
-  const eventMove = applyEventImpact(stock, event, intensity);
-
-  return clamp(baseMove + trend + eventMove, -18, 18);
-};
-
-const createOpeningStockState = (template: StockTemplate, event: PhaseEvent): StockState => {
-  const openingRate = calculateStockMoveRate(template, event, 0.82);
-  const openingPrice = toRoundedPrice(template.basePrice * (1 + openingRate / 100));
-
-  return {
-    ...template,
-    price: openingPrice,
-    previousPrice: template.basePrice,
-    changeRate: Number((((openingPrice - template.basePrice) / template.basePrice) * 100).toFixed(1)),
-    history: createHistoryFromPrices(template.basePrice, openingPrice),
-  };
-};
-
-const createInitialStocks = (event: PhaseEvent) => stockCatalog.map((template) => createOpeningStockState(template, event));
-
-const normalizeStocks = (stocks: StockState[]) =>
-  stocks.map((stock) => ({
-    ...stock,
-    previousPrice: stock.previousPrice ?? stock.price,
-    history: stock.history?.length ? stock.history.slice(-8) : createHistoryFromPrices(stock.previousPrice ?? stock.price, stock.price),
-  }));
-
-
-const getRepresentativeStockCode = (stocks: StockState[], event: PhaseEvent) => {
-  const direction = getEventDirection(event);
-  const sorted = [...stocks].sort((left, right) => {
-    const alignmentGap = getAlignmentScore(right, event) - getAlignmentScore(left, event);
-
-    if (alignmentGap !== 0) {
-      return alignmentGap;
-    }
-
-    if (direction === 'fall') {
-      return left.changeRate - right.changeRate;
-    }
-
-    return right.changeRate - left.changeRate;
-  });
-
-  return sorted[0]?.code ?? stocks[0]?.code ?? '';
-};
-
-const toBriefingTone = (changeRate: number): BriefingTone => {
-  if (changeRate > 1) {
-    return 'rise';
-  }
-
-  if (changeRate < -1) {
-    return 'fall';
-  }
-
-  return 'neutral';
-};
-
-const describeFeaturedReason = (stock: StockState, event: PhaseEvent) => {
-  const matchedTagCount = getMatchedTagCount(stock, event);
-  const direction = getEventDirection(event);
-
-  if (matchedTagCount > 0 && direction === 'rise') {
-    return '이번 이슈 수혜랑 바로 연결되는 종목이에요.';
-  }
-
-  if (matchedTagCount > 0 && direction === 'fall') {
-    return '이번 이벤트 영향을 직접 받을 수 있어서 조금 더 조심해서 볼 종목이에요.';
-  }
-
-  if (stock.changeRate > 1) {
-    return '지금은 상승 압력이 이어지면서 매수세가 붙는 흐름이에요.';
-  }
-
-  if (stock.changeRate < -1) {
-    return '지금은 조정 압력이 강하게 들어온 구간이에요.';
-  }
-
-  return '브리핑 대비 실제 움직임은 아직 중립에 가까워요.';
-};
-
-const buildFeaturedStocks = (stocks: StockState[], event: PhaseEvent): BriefingFeaturedStock[] => {
-  const risingStocks = [...stocks].sort((left, right) => right.changeRate - left.changeRate);
-  const fallingStocks = [...stocks].sort((left, right) => left.changeRate - right.changeRate);
-  const alignedStocks = [...stocks]
-    .sort((left, right) => getAlignmentScore(right, event) - getAlignmentScore(left, event))
-    .filter((stock) => getMatchedTagCount(stock, event) > 0);
-
-  const candidates = [...alignedStocks.slice(0, 2), risingStocks[0], fallingStocks[0]].filter(Boolean);
-  const uniqueStocks = candidates.filter(
-    (stock, index, collection) => stock && collection.findIndex((item) => item?.code === stock.code) === index,
-  );
-
-  return uniqueStocks.slice(0, 4).map((stock) => ({
-    code: stock.code,
-    name: stock.name,
-    theme: stock.theme,
-    price: stock.price,
-    changeRate: stock.changeRate,
-    riskLabel: stock.riskLabel,
-    reason: describeFeaturedReason(stock, event),
-    tone: toBriefingTone(stock.changeRate),
-  }));
-};
-
-const buildBriefingSignals = (
-  stocks: StockState[],
-): BriefingSignal[] => {
-  const risingStocks = [...stocks].sort((left, right) => right.changeRate - left.changeRate);
-  const fallingStocks = [...stocks].sort((left, right) => left.changeRate - right.changeRate);
-  const averageChange = stocks.reduce((sum, stock) => sum + stock.changeRate, 0) / Math.max(stocks.length, 1);
-
-  const marketFlow = averageChange > 1 ? '상승 쪽 분위기' : averageChange < -1 ? '조정 쪽 분위기' : '혼조세';
-  return [
-    {
-      id: 'market-flow',
-      label: '시장 온도',
-      value: `${marketFlow} · 평균 ${averageChange > 0 ? '+' : ''}${averageChange.toFixed(1)}%`,
-      tone: averageChange > 0.6 ? 'rise' : averageChange < -0.6 ? 'fall' : 'neutral',
-    },
-    {
-      id: 'hot-picks',
-      label: '강세 상위',
-      stocks: risingStocks.slice(0, 2).map(({ code, name, changeRate }) => ({ code, name, changeRate })),
-      tone: 'rise',
-    },
-    {
-      id: 'risk-picks',
-      label: '주의 구간',
-      stocks: fallingStocks.slice(0, 2).map(({ code, name, changeRate }) => ({ code, name, changeRate })),
-      tone: 'fall',
-    },
-  ];
-};
-
-const suggestTradeQuantity = (stock: StockState | undefined, cashAmount: number, ownedQuantity: number) => {
-  if (!stock) {
-    return 1;
-  }
-
-  if (ownedQuantity > 0) {
-    return clamp(Math.ceil(ownedQuantity / 2), 1, ownedQuantity);
-  }
-
-  const affordableQuantity = Math.floor(cashAmount / stock.price);
-
-  if (affordableQuantity <= 0) {
-    return 1;
-  }
-
-  const capByRisk = stock.riskLabel === '안정형' ? 8 : stock.riskLabel === '성장형' ? 5 : 3;
-  return clamp(Math.min(affordableQuantity, capByRisk), 1, Math.max(1, affordableQuantity));
-};
-
-const createInitialPersistedState = (): PersistedGameState => {
-  const openingEvent = pickRandomPhaseEvent();
-  const openingStocks = createInitialStocks(openingEvent);
-  const selectedCode = getRepresentativeStockCode(openingStocks, openingEvent);
-
-  return {
-    nickname: '',
-    currentScreen: 'home',
-    totalPhases: totalPhasesDefault,
-    currentPhase: 1,
-    cash: startingCashDefault,
-    tradeQuantity: suggestTradeQuantity(openingStocks.find((stock) => stock.code === selectedCode), startingCashDefault, 0),
-    selectedCode,
-    stocks: openingStocks,
-    holdings: [],
-    summary: null,
-    currentPhaseEvent: openingEvent,
-    phaseView: 'briefing',
-    phaseTradeActions: [],
-  };
-};
-
-const readJson = <T>(key: string, fallback: T): T => {
-  if (typeof window === 'undefined') {
-    return fallback;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-const createPersistedFallbackEvent = (title: string, description: string): PhaseEvent => ({
-  title,
-  description,
-  affectedTags: [],
-  effectRange: [-2, 2],
-});
-
-const normalizePersistedState = (state: LegacyPersistedGameState): PersistedGameState => {
-  const fallback = createInitialPersistedState();
-  const currentPhaseEvent = state.currentPhaseEvent
-    ? clonePhaseEvent(state.currentPhaseEvent)
-    : state.currentEventTitle && state.currentEventDescription
-      ? createPersistedFallbackEvent(state.currentEventTitle, state.currentEventDescription)
-      : fallback.currentPhaseEvent;
-  const normalizedStocks = state.stocks?.length ? normalizeStocks(state.stocks) : fallback.stocks;
-  const selectedCode = normalizedStocks.some((stock) => stock.code === state.selectedCode)
-    ? state.selectedCode
-    : getRepresentativeStockCode(normalizedStocks, currentPhaseEvent);
-
-  return {
-    ...fallback,
-    ...state,
-    nickname: state.nickname?.trim() ?? '',
-    currentScreen: (state.currentScreen as string) === 'guide' ? 'home' : state.currentScreen,
-    stocks: normalizedStocks,
-    selectedCode,
-    holdings: state.holdings ?? [],
-    summary: state.summary ?? null,
-    currentPhaseEvent,
-    phaseView: state.phaseView ?? 'briefing',
-    phaseTradeActions: state.phaseTradeActions ?? [],
-  };
-};
-
-const createSummaryFromStocks = (
-  phaseNumber: number,
-  stocks: StockState[],
-  totalAssets: number,
-  phaseProfitRate: number,
-  event: PhaseEvent,
-  decisionLabel: string,
-): PhaseSummary => {
-  const sortedStocks = [...stocks].sort((left, right) => right.changeRate - left.changeRate);
-  const weakestStock = sortedStocks[sortedStocks.length - 1];
-
-  return {
-    phaseNumber,
-    eventTitle: event.title,
-    eventDescription: event.description,
-    phaseProfitRate,
-    totalAssets,
-    strongestStockCode: sortedStocks[0]?.code ?? '',
-    weakestStockCode: weakestStock?.code ?? '',
-    decisionLabel,
-  };
-};
 
 export const useInvestmentGame = () => {
   const fallbackState = createInitialPersistedState();
-  const persistedState = normalizePersistedState(readJson<LegacyPersistedGameState>(gameStorageKey, fallbackState));
+  const persistedState = normalizePersistedState(readJson<Partial<PersistedGameState>>(gameStorageKey, fallbackState));
 
   const currentScreen = ref<Screen>(persistedState.currentScreen);
-  const nickname = ref(persistedState.nickname);
-  const totalPhases = ref(persistedState.totalPhases);
   const currentPhase = ref(persistedState.currentPhase);
+  const ending = ref<GameEnding | null>(persistedState.ending);
   const cash = ref(persistedState.cash);
   const tradeQuantity = ref(persistedState.tradeQuantity);
   const selectedCode = ref(persistedState.selectedCode);
@@ -372,42 +23,18 @@ export const useInvestmentGame = () => {
   const holdings = ref<Holding[]>(persistedState.holdings);
   const summary = ref<PhaseSummary | null>(persistedState.summary);
   const currentPhaseEvent = ref<PhaseEvent>(clonePhaseEvent(persistedState.currentPhaseEvent));
-  const phaseView = ref<PhaseView>(persistedState.phaseView);
   const phaseTradeActions = ref<PhaseTradeAction[]>(persistedState.phaseTradeActions);
-  const ranking = ref<RankingEntry[]>([]);
-
-  const loadRankings = async () => {
-    if (!supabase) {
-      ranking.value = [];
-      return;
-    }
-
-    const { data } = await supabase
-      .from('rankings')
-      .select('nickname, score, created_at')
-      .order('score', { ascending: false })
-      .order('created_at', { ascending: true })
-      .limit(10);
-
-    ranking.value = (data ?? []).map((entry) => ({
-      nickname: entry.nickname,
-      score: entry.score,
-      assets: entry.score * 100,
-      playedAt: entry.created_at.slice(0, 10),
-    }));
-  };
-
-  void loadRankings();
+  const pendingOrders = ref<PendingOrder[]>(persistedState.pendingOrders);
+  const marketMinute = ref(persistedState.marketMinute);
+  const marketIndexBaseCapitalization = ref(persistedState.marketIndexBaseCapitalization);
+  const marketIndexPreviousClose = ref(persistedState.marketIndexPreviousClose);
+  const marketDayOpeningAssets = ref(persistedState.marketDayOpeningAssets);
+  const marketDayAssetHistory = ref(persistedState.marketDayAssetHistory);
   const flashMessage = ref('');
-  const gameMode = ref<GameMode>('practice');
 
   const currentEventTitle = computed(() => currentPhaseEvent.value.title);
   const currentEventDescription = computed(() => currentPhaseEvent.value.description);
   const selectedStock = computed(() => stocks.value.find((stock) => stock.code === selectedCode.value) ?? stocks.value[0]);
-  const phaseTradeCount = computed(() => phaseTradeActions.value.length);
-  const phaseBuyCount = computed(() => phaseTradeActions.value.filter((action) => action.side === 'buy').length);
-  const phaseSellCount = computed(() => phaseTradeActions.value.filter((action) => action.side === 'sell').length);
-  const phaseTradedCodes = computed(() => new Set(phaseTradeActions.value.map((action) => action.code)));
 
   const holdingsMap = computed(() =>
     holdings.value.reduce<Record<string, Holding>>((accumulator, holding) => {
@@ -424,78 +51,41 @@ export const useInvestmentGame = () => {
   );
 
   const totalAssets = computed(() => cash.value + portfolioValue.value);
-  const score = computed(() => Math.round(totalAssets.value / 100));
-  const returnRate = computed(() => Number((((totalAssets.value - startingCashDefault) / startingCashDefault) * 100).toFixed(1)));
-  const isFinalSummary = computed(() => summary.value?.phaseNumber === totalPhases.value);
+  const marketOpen = computed(() => currentScreen.value === 'game' && marketMinute.value < marketCloseMinute && !(marketMinute.value >= regularMarketCloseMinute && marketMinute.value < afterMarketOpenMinute) && ending.value === null);
+  const marketIndexValue = computed(() => Number((getMarketCapitalization(stocks.value) / marketIndexBaseCapitalization.value * 1000).toFixed(2)));
+  const marketIndexChange = computed(() => Number((marketIndexValue.value - marketIndexPreviousClose.value).toFixed(2)));
+  const marketIndexChangeRate = computed(() => marketIndexPreviousClose.value ? (marketIndexChange.value / marketIndexPreviousClose.value) * 100 : 0);
+  const reservedCash = computed(() => pendingOrders.value.reduce((sum, order) => sum + (order.side === 'buy' ? order.quantity * order.limitPrice : 0), 0));
+  const availableCash = computed(() => Math.max(0, cash.value - reservedCash.value));
   const strongestStock = computed(() => stocks.value.find((stock) => stock.code === summary.value?.strongestStockCode) ?? null);
   const weakestStock = computed(() => stocks.value.find((stock) => stock.code === summary.value?.weakestStockCode) ?? null);
-  const selectedHoldingQuantity = computed(() => holdingsMap.value[selectedCode.value]?.quantity ?? 0);
-  const maxAffordableQuantity = computed(() => Math.max(0, Math.floor(cash.value / (selectedStock.value?.price ?? Number.MAX_SAFE_INTEGER))));
-  const selectedStockLocked = computed(() => phaseTradedCodes.value.has(selectedCode.value));
-  const canBuyMaxSelected = computed(() => !selectedStockLocked.value && maxAffordableQuantity.value > 0);
-  const canSellAllSelected = computed(() => !selectedStockLocked.value && selectedHoldingQuantity.value > 0);
-  const canBuySelected = computed(() => canBuyMaxSelected.value && tradeQuantity.value <= maxAffordableQuantity.value);
-  const canSellSelected = computed(() => canSellAllSelected.value && tradeQuantity.value <= selectedHoldingQuantity.value);
-  const phaseTradeLocked = computed(
-    () =>
-      !stocks.value.some((stock) => {
-        if (phaseTradedCodes.value.has(stock.code)) {
-          return false;
-        }
-
-        const hasHolding = (holdingsMap.value[stock.code]?.quantity ?? 0) > 0;
-        const canAfford = cash.value >= stock.price;
-        return hasHolding || canAfford;
-      }),
-  );
-  const briefingFeaturedStocks = computed(() => buildFeaturedStocks(stocks.value, currentPhaseEvent.value));
-  const briefingSignals = computed(() => buildBriefingSignals(stocks.value));
-
+  const reservedShares = computed(() => pendingOrders.value.filter((order) => order.code === selectedCode.value && order.side === 'sell').reduce((sum, order) => sum + order.quantity, 0));
+  const selectedHoldingQuantity = computed(() => Math.max(0, (holdingsMap.value[selectedCode.value]?.quantity ?? 0) - reservedShares.value));
+  const maxAffordableQuantity = computed(() => Math.max(0, Math.floor(availableCash.value / (selectedStock.value?.price ?? Number.MAX_SAFE_INTEGER))));
+  const canBuyMaxSelected = computed(() => maxAffordableQuantity.value > 0);
+  const canSellAllSelected = computed(() => selectedHoldingQuantity.value > 0);
+  const canBuySelected = computed(() => marketOpen.value && !selectedStock.value?.halted && canBuyMaxSelected.value && tradeQuantity.value <= maxAffordableQuantity.value);
+  const canSellSelected = computed(() => marketOpen.value && !selectedStock.value?.halted && canSellAllSelected.value && tradeQuantity.value <= selectedHoldingQuantity.value);
   const saveGameState = () => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
+    if (typeof window === 'undefined') return;
     const payload: PersistedGameState = {
-      nickname: nickname.value.trim(),
-      currentScreen: currentScreen.value,
-      totalPhases: totalPhases.value,
-      currentPhase: currentPhase.value,
-      cash: cash.value,
-      tradeQuantity: tradeQuantity.value,
-      selectedCode: selectedCode.value,
-      stocks: stocks.value,
-      holdings: holdings.value,
-      summary: summary.value,
-      currentPhaseEvent: currentPhaseEvent.value,
-      phaseView: phaseView.value,
-      phaseTradeActions: phaseTradeActions.value,
+      currentScreen: currentScreen.value, currentPhase: currentPhase.value,
+      ending: ending.value, cash: cash.value, tradeQuantity: tradeQuantity.value, selectedCode: selectedCode.value,
+      stocks: stocks.value, holdings: holdings.value, summary: summary.value, currentPhaseEvent: currentPhaseEvent.value,
+      phaseTradeActions: phaseTradeActions.value, pendingOrders: pendingOrders.value, marketMinute: marketMinute.value,
+      marketDayOpeningAssets: marketDayOpeningAssets.value, marketDayAssetHistory: marketDayAssetHistory.value,
+      marketIndexBaseCapitalization: marketIndexBaseCapitalization.value, marketIndexPreviousClose: marketIndexPreviousClose.value,
     };
-
-    window.localStorage.setItem(gameStorageKey, JSON.stringify(payload));
+    try {
+      window.localStorage.setItem(gameStorageKey, JSON.stringify(payload));
+    } catch {
+      // Keep the current session playable when browser storage is unavailable or full.
+    }
   };
 
   watch(
-    [
-      currentScreen,
-      nickname,
-      totalPhases,
-      currentPhase,
-      cash,
-      tradeQuantity,
-      selectedCode,
-      stocks,
-      holdings,
-      summary,
-      currentPhaseEvent,
-      phaseView,
-      phaseTradeActions,
-    ],
-    () => {
-      if (gameMode.value === 'ranking') {
-        saveGameState();
-      }
-    },
+    [currentScreen, currentPhase, ending, cash, tradeQuantity, selectedCode, stocks, holdings, summary, currentPhaseEvent, phaseTradeActions, pendingOrders, marketMinute, marketDayOpeningAssets, marketDayAssetHistory, marketIndexBaseCapitalization, marketIndexPreviousClose],
+    saveGameState,
     { deep: true },
   );
 
@@ -523,28 +113,18 @@ export const useInvestmentGame = () => {
     const stock = stocks.value.find((item) => item.code === stockCode);
     const ownedQuantity = holdingsMap.value[stockCode]?.quantity ?? 0;
 
-    return suggestTradeQuantity(stock, cash.value, ownedQuantity);
+    return suggestTradeQuantity(stock, availableCash.value, ownedQuantity - pendingOrders.value.filter((order) => order.code === stockCode && order.side === 'sell').reduce((sum, order) => sum + order.quantity, 0));
   };
 
   const syncTradeQuantityForSelectedStock = (stockCode = selectedCode.value) => {
     tradeQuantity.value = getSuggestedTradeQuantity(stockCode);
   };
 
-  const preparePhaseBriefing = (event = pickRandomPhaseEvent()) => {
-    currentPhaseEvent.value = clonePhaseEvent(event);
-    phaseView.value = 'briefing';
-    phaseTradeActions.value = [];
-    flashMessage.value = '';
-    selectedCode.value = getRepresentativeStockCode(stocks.value, currentPhaseEvent.value);
-    syncTradeQuantityForSelectedStock(selectedCode.value);
-  };
-
   const resetGame = () => {
     const nextState = createInitialPersistedState();
-    nickname.value = nextState.nickname;
     currentScreen.value = nextState.currentScreen;
-    totalPhases.value = totalPhasesDefault;
     currentPhase.value = nextState.currentPhase;
+    ending.value = nextState.ending;
     cash.value = nextState.cash;
     tradeQuantity.value = nextState.tradeQuantity;
     selectedCode.value = nextState.selectedCode;
@@ -552,34 +132,46 @@ export const useInvestmentGame = () => {
     holdings.value = nextState.holdings;
     summary.value = nextState.summary;
     currentPhaseEvent.value = clonePhaseEvent(nextState.currentPhaseEvent);
-    phaseView.value = nextState.phaseView;
     phaseTradeActions.value = [];
+    pendingOrders.value = [];
+    marketMinute.value = nextState.marketMinute;
+    marketIndexBaseCapitalization.value = nextState.marketIndexBaseCapitalization;
+    marketIndexPreviousClose.value = nextState.marketIndexPreviousClose;
+    marketDayOpeningAssets.value = nextState.marketDayOpeningAssets;
+    marketDayAssetHistory.value = nextState.marketDayAssetHistory;
     flashMessage.value = '';
     syncTradeQuantityForSelectedStock(nextState.selectedCode);
   };
 
-  const startGame = (mode: GameMode = 'practice') => {
-    gameMode.value = mode;
-    if (mode === 'practice' && typeof window !== 'undefined') {
-      window.localStorage.removeItem(gameStorageKey);
+  const startGame = () => {
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.removeItem(gameStorageKey);
+      } catch {
+        // Reset the in-memory game even when browser storage is unavailable.
+      }
     }
     resetGame();
+    currentScreen.value = 'game';
+    beginMarketDay();
+  };
+
+  const beginMarketDay = () => {
+    marketIndexPreviousClose.value = marketIndexValue.value;
+    marketMinute.value = marketOpenMinute;
+    marketDayOpeningAssets.value = totalAssets.value;
+    marketDayAssetHistory.value = [totalAssets.value];
+    phaseTradeActions.value = [];
+    currentPhaseEvent.value = pickRandomPhaseEvent();
+    stocks.value = stocks.value.map((stock) => ({ ...stock, previousPrice: stock.price, previousClose: stock.price, changeRate: 0, sessionStartIndex: stock.history.length - 1 }));
+    pendingOrders.value = [];
+    ending.value = null;
+    summary.value = null;
     currentScreen.value = 'game';
   };
 
   const openScreen = (screen: Screen) => {
     currentScreen.value = screen;
-    if (screen === 'ranking') {
-      void loadRankings();
-    }
-  };
-
-  const openBriefingView = () => {
-    phaseView.value = 'briefing';
-  };
-
-  const openTradeView = () => {
-    phaseView.value = 'trade';
   };
 
   const selectStock = (code: string) => {
@@ -605,19 +197,66 @@ export const useInvestmentGame = () => {
     existingHolding.averagePrice = Math.round(totalCost / totalQuantity);
   };
 
-  const ensurePhaseTradeAvailable = () => {
+  const createLimitOrder = (side: TradeSide, quantity: number, limitPrice: number) => {
+    if (!marketOpen.value) return;
     const stock = selectedStock.value;
-
-    if (!stock) {
-      return false;
+    if (stock.halted) {
+      setFlashMessage('상한가 또는 하한가에 도달해 오늘은 거래할 수 없어요.');
+      return;
     }
-
-    if (phaseTradedCodes.value.has(stock.code)) {
-      setFlashMessage('이 종목은 이번 페이즈에서 이미 거래했어요. 다른 종목으로 이어서 가보면 돼요.');
-      return false;
+    const orderQuantity = Math.floor(quantity);
+    if (!Number.isFinite(limitPrice) || limitPrice <= 0 || orderQuantity <= 0) return;
+    if (side === 'buy' && orderQuantity * limitPrice > availableCash.value) {
+      setFlashMessage('예약 매수에 필요한 예수금이 부족해요.');
+      return;
     }
+    if (side === 'sell' && orderQuantity > selectedHoldingQuantity.value) {
+      setFlashMessage('예약 매도할 수 있는 수량이 부족해요.');
+      return;
+    }
+    pendingOrders.value = [...pendingOrders.value, {
+      id: Math.max(0, ...pendingOrders.value.map((order) => order.id)) + 1,
+      code: stock.code,
+      side,
+      quantity: orderQuantity,
+      limitPrice: Math.floor(limitPrice),
+    }];
+    setFlashMessage(`${stock.name} ${side === 'buy' ? '매수' : '매도'} 예약을 걸었어요.`);
+  };
 
-    return true;
+  const cancelLimitOrder = (id: number) => {
+    pendingOrders.value = pendingOrders.value.filter((order) => order.id !== id);
+  };
+
+  const fillLimitOrders = () => {
+    const unfilled: PendingOrder[] = [];
+    const fills: string[] = [];
+    for (const order of pendingOrders.value) {
+      const stock = stocks.value.find((item) => item.code === order.code);
+      if (!stock || stock.halted || (order.side === 'buy' ? stock.price > order.limitPrice : stock.price < order.limitPrice)) {
+        unfilled.push(order);
+        continue;
+      }
+      if (order.side === 'buy') {
+        const cost = stock.price * order.quantity;
+        if (cash.value < cost) {
+          unfilled.push(order);
+          continue;
+        }
+        cash.value -= cost;
+        updateHoldingAfterBuy(order.code, order.quantity, stock.price);
+      } else {
+        const holding = holdings.value.find((item) => item.code === order.code);
+        if (!holding || holding.quantity < order.quantity) continue;
+        holding.quantity -= order.quantity;
+        cash.value += stock.price * order.quantity;
+        if (!holding.quantity) holdings.value = holdings.value.filter((item) => item.code !== order.code);
+      }
+      appendPhaseTradeAction(order.side, stock, order.quantity);
+      fills.push(`${stock.name} ${order.quantity}주 ${order.side === 'buy' ? '예약 매수' : '예약 매도'} 체결`);
+    }
+    pendingOrders.value = unfilled;
+    if (fills.length) setFlashMessage(fills.join(' · '));
   };
 
   const appendPhaseTradeAction = (side: TradeSide, stock: StockState, quantity: number) => {
@@ -630,18 +269,24 @@ export const useInvestmentGame = () => {
         side,
         quantity,
         label,
+        price: stock.price,
+        marketMinute: marketMinute.value,
       },
     ];
 
   };
 
   const buyStock = () => {
-    if (!ensurePhaseTradeAvailable()) {
+    if (!marketOpen.value) {
+      setFlashMessage('거래 가능 시간에만 주문할 수 있어요.');
       return;
     }
-
     const quantity = Math.max(1, Math.floor(Number(tradeQuantity.value) || 1));
     const stock = selectedStock.value;
+    if (stock.halted) {
+      setFlashMessage('상한가 또는 하한가에 도달해 오늘은 거래할 수 없어요.');
+      return;
+    }
 
     if (!stock) {
       return;
@@ -649,7 +294,7 @@ export const useInvestmentGame = () => {
 
     const totalCost = stock.price * quantity;
 
-    if (cash.value < totalCost) {
+    if (availableCash.value < totalCost) {
       setFlashMessage('현금이 조금 부족해요.');
       return;
     }
@@ -660,35 +305,17 @@ export const useInvestmentGame = () => {
     setFlashMessage(`${stock.name} ${quantity}주 매수했어요.`);
   };
 
-  const buyMaxStock = () => {
-    if (!ensurePhaseTradeAvailable()) {
-      return;
-    }
-
-    const stock = selectedStock.value;
-
-    if (!stock) {
-      return;
-    }
-
-    const quantity = Math.floor(cash.value / stock.price);
-
-    if (quantity <= 0) {
-      setFlashMessage('지금은 살 수 있는 수량이 없어요.');
-      return;
-    }
-
-    tradeQuantity.value = quantity;
-    buyStock();
-  };
-
   const sellStock = () => {
-    if (!ensurePhaseTradeAvailable()) {
+    if (!marketOpen.value) {
+      setFlashMessage('거래 가능 시간에만 주문할 수 있어요.');
       return;
     }
-
     const quantity = Math.max(1, Math.floor(Number(tradeQuantity.value) || 1));
     const stock = selectedStock.value;
+    if (stock.halted) {
+      setFlashMessage('상한가 또는 하한가에 도달해 오늘은 거래할 수 없어요.');
+      return;
+    }
 
     if (!stock) {
       return;
@@ -696,7 +323,7 @@ export const useInvestmentGame = () => {
 
     const existingHolding = holdings.value.find((holding) => holding.code === stock.code);
 
-    if (!existingHolding || existingHolding.quantity < quantity) {
+    if (!existingHolding || selectedHoldingQuantity.value < quantity) {
       setFlashMessage('팔 수 있는 보유 수량이 부족해요.');
       return;
     }
@@ -712,143 +339,100 @@ export const useInvestmentGame = () => {
     setFlashMessage(`${stock.name} ${quantity}주 매도했어요.`);
   };
 
-  const sellAllStock = () => {
-    if (!ensurePhaseTradeAvailable()) {
-      return;
-    }
-
-    const stock = selectedStock.value;
-
-    if (!stock) {
-      return;
-    }
-
-    const quantity = holdingsMap.value[stock.code]?.quantity ?? 0;
-
-    if (quantity <= 0) {
-      setFlashMessage('전량 매도할 수량이 없어요.');
-      return;
-    }
-
-    tradeQuantity.value = quantity;
-    sellStock();
-  };
-
-  const advancePhase = () => {
-    const phaseNumber = currentPhase.value;
-    const activeEvent = clonePhaseEvent(currentPhaseEvent.value);
-    const assetsBeforeMove = totalAssets.value;
-    const decisionLabel = phaseTradeActions.value.length > 0
-      ? phaseTradeActions.value.map((action) => action.label).join(' · ')
-      : '관망했어요';
-
+  const updateLiveMarket = () => {
+    const event = currentPhaseEvent.value;
+    const volatility = marketMinute.value >= afterMarketOpenMinute ? 0.08 : 0.14;
     stocks.value = stocks.value.map((stock) => {
-      const moveRate = calculateStockMoveRate(stock, activeEvent);
-      const nextPrice = toRoundedPrice(stock.price * (1 + moveRate / 100));
+      if (stock.halted) return stock;
+      const moveRate = calculateStockMoveRate(stock, event, volatility, 1 / marketTicksPerDay, volatility / marketTicksPerDay);
+      const upperReference = stock.previousClose * (1 + dailyPriceLimitRate / 100);
+      const lowerReference = stock.previousClose * (1 - dailyPriceLimitRate / 100);
+      const upperUnit = getPriceRoundingUnit(upperReference);
+      const lowerUnit = getPriceRoundingUnit(lowerReference);
+      const upperLimit = Math.floor(upperReference / upperUnit) * upperUnit;
+      const lowerLimit = Math.ceil(lowerReference / lowerUnit) * lowerUnit;
+      const price = clamp(toRoundedPrice(stock.price * (1 + moveRate / 100)), lowerLimit, upperLimit);
+      const fullHistory = [...stock.history, price];
+      const history = fullHistory.slice(-80);
+      const removedHistoryCount = fullHistory.length - history.length;
 
       return {
         ...stock,
-        previousPrice: stock.price,
-        price: nextPrice,
-        changeRate: Number((((nextPrice - stock.price) / stock.price) * 100).toFixed(1)),
-        history: [...stock.history, nextPrice].slice(-8),
+        price,
+        changeRate: Number((((price - stock.previousClose) / stock.previousClose) * 100).toFixed(2)),
+        halted: price >= upperLimit || price <= lowerLimit,
+        history,
+        sessionStartIndex: Math.max(0, stock.sessionStartIndex - removedHistoryCount),
       };
     });
-
-    const phaseProfitRate = Number((((totalAssets.value - assetsBeforeMove) / assetsBeforeMove) * 100).toFixed(1));
-    summary.value = createSummaryFromStocks(phaseNumber, stocks.value, totalAssets.value, phaseProfitRate, activeEvent, decisionLabel);
-    currentScreen.value = 'summary';
-
-    if (phaseNumber < totalPhases.value) {
-      currentPhase.value += 1;
+    pendingOrders.value = pendingOrders.value.filter((order) => !stocks.value.find((stock) => stock.code === order.code)?.halted);
+    fillLimitOrders();
+    currentPhaseEvent.value = pickRandomPhaseEvent();
+    marketDayAssetHistory.value = [...marketDayAssetHistory.value, totalAssets.value].slice(-marketHistorySamplesPerDay);
+    if (totalAssets.value <= bankruptcyFloor) {
+      ending.value = 'broke';
+      currentScreen.value = 'result';
     }
+  };
+
+  const closeMarketDay = () => {
+    if (currentScreen.value !== 'game' || ending.value) return;
+    marketMinute.value = marketCloseMinute;
+    pendingOrders.value = [];
+    stocks.value = stocks.value.map((stock) => ({
+      ...stock,
+      dailyHistory: [...stock.dailyHistory.filter((close) => close.day !== currentPhase.value), { day: currentPhase.value, price: stock.price }].slice(-maxGameDays),
+    }));
+    const phaseProfitRate = marketDayOpeningAssets.value > 0
+      ? Number((((totalAssets.value - marketDayOpeningAssets.value) / marketDayOpeningAssets.value) * 100).toFixed(2))
+      : 0;
+    summary.value = {
+      ...createSummaryFromStocks(
+        currentPhase.value,
+        stocks.value,
+        totalAssets.value,
+        phaseProfitRate,
+        currentPhaseEvent.value,
+        phaseTradeActions.value.map((action) => action.label).join(' · ') || '오늘은 거래하지 않았어요.',
+      ),
+      openingAssets: marketDayOpeningAssets.value,
+      assetHistory: marketDayAssetHistory.value.slice(-marketHistorySamplesPerDay),
+      trades: [...phaseTradeActions.value],
+    };
+    currentScreen.value = 'summary';
+  };
+
+  const advanceMarketClock = (minutes = 1) => {
+    if (currentScreen.value !== 'game' || ending.value || marketMinute.value >= marketCloseMinute) return;
+    const previousMinute = marketMinute.value;
+    const targetMinute = Math.min(marketCloseMinute, previousMinute + minutes);
+    for (let tickMinute = Math.floor(previousMinute / 5) * 5 + 5; tickMinute <= targetMinute && !ending.value; tickMinute += 5) {
+      if (tickMinute > regularMarketCloseMinute && tickMinute < afterMarketOpenMinute) continue;
+      marketMinute.value = tickMinute;
+      updateLiveMarket();
+    }
+    marketMinute.value = targetMinute;
+    if (currentScreen.value === 'game' && !ending.value && marketMinute.value >= marketCloseMinute) closeMarketDay();
   };
 
   const continueFromSummary = () => {
-    if (isFinalSummary.value) {
+    if (currentPhase.value >= maxGameDays) {
+      ending.value = 'completed';
       currentScreen.value = 'result';
       return;
     }
-
     summary.value = null;
-    preparePhaseBriefing();
-    currentScreen.value = 'game';
+    currentPhase.value += 1;
+    beginMarketDay();
   };
 
-  const goToResult = () => {
-    currentScreen.value = 'result';
-  };
-
-  const registerRanking = async () => {
-    const trimmedNickname = nickname.value.trim();
-    if (!trimmedNickname || gameMode.value !== 'ranking' || !supabase) {
-      return;
-    }
-
-    const { error } = await supabase.from('rankings').insert({ nickname: trimmedNickname, score: score.value });
-    if (error) {
-      return;
-    }
-
-    await loadRankings();
-    resetGame();
-    currentScreen.value = 'ranking';
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(gameStorageKey);
-    }
-  };
   return {
-    advancePhase,
-    briefingFeaturedStocks,
-    briefingSignals,
-    buyMaxStock,
-    buyStock,
-    canBuyMaxSelected,
-    canBuySelected,
-    canSellAllSelected,
-    canSellSelected,
-    cash,
-    continueFromSummary,
-    currentEventDescription,
-    currentEventTitle,
-    gameMode,
-    currentPhase,
-    currentScreen,
-    goToResult,
-    holdings,
-    holdingsMap,
-    isFinalSummary,
-    maxAffordableQuantity,
-    nickname,
-    nudgeTradeQuantity,
-    openBriefingView,
-    openScreen,
-    openTradeView,
-    phaseBuyCount,
-    phaseSellCount,
-    phaseTradeCount,
-    phaseTradeLocked,
-    phaseView,
-    ranking,
-    registerRanking,
-    resetGame,
-    returnRate,
-    score,
-    selectStock,
-    selectedCode,
-    selectedHoldingQuantity,
-    selectedStock,
-    selectedStockLocked,
-    sellAllStock,
-    sellStock,
-    setTradeQuantity,
-    startGame,
-    stocks,
-    strongestStock,
-    summary,
-    totalAssets,
-    totalPhases,
-    tradeQuantity,
-    weakestStock,
+    advanceMarketClock, buyStock, canBuySelected, canSellSelected, cash, continueFromSummary,
+    currentEventDescription, currentEventTitle, currentPhase, ending, currentScreen, flashMessage,
+    holdings, holdingsMap, maxAffordableQuantity, availableCash, pendingOrders, marketMinute, marketOpen,
+    marketDayOpeningAssets, marketDayAssetHistory, marketIndexValue, marketIndexChange, marketIndexChangeRate, createLimitOrder, cancelLimitOrder,
+    nudgeTradeQuantity, openScreen, resetGame, selectStock,
+    selectedCode, selectedHoldingQuantity, selectedStock, sellStock, setTradeQuantity, startGame,
+    stocks, strongestStock, summary, totalAssets, tradeQuantity, weakestStock,
   };
 };

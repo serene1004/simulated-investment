@@ -1,8 +1,9 @@
-export type Screen = 'home' | 'game' | 'summary' | 'result' | 'ranking';
-export type PhaseView = 'briefing' | 'trade';
-export type GameMode = 'practice' | 'ranking';
+export type Screen = 'home' | 'game' | 'summary' | 'result';
+export type GameView = 'market' | 'companies' | 'chart' | 'orders' | 'portfolio';
 export type TradeSide = 'buy' | 'sell';
 export type BriefingTone = 'rise' | 'fall' | 'neutral';
+export type GameEnding = 'broke' | 'completed';
+export type StockDailyClose = { day: number; price: number };
 
 export type StockTemplate = {
   code: string
@@ -10,6 +11,8 @@ export type StockTemplate = {
   theme: string
   riskLabel: string
   basePrice: number
+  sharesOutstanding: number
+  averageVolume: number
   volatility: number
   drift: number
   eventTags: string[]
@@ -18,8 +21,12 @@ export type StockTemplate = {
 export type StockState = StockTemplate & {
   price: number
   previousPrice: number
+  previousClose: number
   changeRate: number
+  halted: boolean
+  dailyHistory: StockDailyClose[]
   history: number[]
+  sessionStartIndex: number
 };
 
 export type Holding = {
@@ -28,11 +35,12 @@ export type Holding = {
   averagePrice: number
 };
 
-export type RankingEntry = {
-  nickname: string
-  score: number
-  assets: number
-  playedAt: string
+export type PendingOrder = {
+  id: number
+  code: string
+  side: TradeSide
+  quantity: number
+  limitPrice: number
 };
 
 export type PhaseEvent = {
@@ -42,30 +50,13 @@ export type PhaseEvent = {
   effectRange: [number, number]
 };
 
-export type BriefingSignal = {
-  id: string
-  label: string
-  value?: string
-  stocks?: Array<{ code: string; name: string; changeRate: number }>
-  tone: BriefingTone
-};
-
-export type BriefingFeaturedStock = {
-  code: string
-  name: string
-  theme: string
-  price: number
-  changeRate: number
-  riskLabel: string
-  reason: string
-  tone: BriefingTone
-};
-
 export type PhaseTradeAction = {
   code: string
   side: TradeSide
   quantity: number
   label: string
+  price?: number
+  marketMinute?: number
 };
 
 export type PhaseSummary = {
@@ -77,13 +68,15 @@ export type PhaseSummary = {
   strongestStockCode: string
   weakestStockCode: string
   decisionLabel: string
+  openingAssets?: number
+  assetHistory?: number[]
+  trades?: PhaseTradeAction[]
 };
 
 export type PersistedGameState = {
-  nickname: string
   currentScreen: Screen
-  totalPhases: number
   currentPhase: number
+  ending: GameEnding | null
   cash: number
   tradeQuantity: number
   selectedCode: string
@@ -91,6 +84,37 @@ export type PersistedGameState = {
   holdings: Holding[]
   summary: PhaseSummary | null
   currentPhaseEvent: PhaseEvent
-  phaseView: PhaseView
   phaseTradeActions: PhaseTradeAction[]
+  pendingOrders: PendingOrder[]
+  marketMinute: number
+  marketDayOpeningAssets: number
+  marketDayAssetHistory: number[]
+  marketIndexBaseCapitalization: number
+  marketIndexPreviousClose: number
+};
+
+export type GameBoardState = {
+  view: GameView
+  currentPhase: number
+  marketMinute: number
+  marketOpen: boolean
+  marketIndexValue: number
+  marketIndexChange: number
+  marketIndexChangeRate: number
+  marketSpeed: 1 | 2 | 4 | 8
+  dayOpeningAssets: number
+  flashMessage: string
+  cash: number
+  availableCash: number
+  totalAssets: number
+  stocks: StockState[]
+  selectedCode: string
+  selectedStock: StockState
+  tradeQuantity: number
+  maxAffordableQuantity: number
+  selectedHoldingQuantity: number
+  holdings: Holding[]
+  pendingOrders: PendingOrder[]
+  canBuySelected: boolean
+  canSellSelected: boolean
 };

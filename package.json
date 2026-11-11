@@ -6,11 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
+    "verify": "pnpm lint && pnpm build",
     "preview": "vite preview",
     "lint": "eslint ."
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.112.4",
     "vue": "^3.5.13",
     "vue-router": "^5.3.1"
   },
